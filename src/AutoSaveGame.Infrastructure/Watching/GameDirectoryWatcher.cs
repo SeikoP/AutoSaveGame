@@ -4,7 +4,7 @@ using AutoSaveGame.Core.Services;
 
 namespace AutoSaveGame.Infrastructure.Watching;
 
-public sealed class GameDirectoryWatcher : IAsyncDisposable
+public sealed class GameDirectoryWatcher : IGameDirectoryWatcher
 {
     private readonly object gate = new();
     private readonly IBackupScheduler scheduler;

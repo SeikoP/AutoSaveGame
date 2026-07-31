@@ -1,0 +1,13 @@
+<Application x:Class="AutoSaveGame.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="WindowBackground" Color="#F5F7FB" />
+        <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB" />
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Application.Resources>
+</Application>
