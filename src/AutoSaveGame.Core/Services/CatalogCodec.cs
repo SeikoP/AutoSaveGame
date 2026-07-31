@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using AutoSaveGame.Core.Models;
 
 namespace AutoSaveGame.Core.Services;
@@ -51,6 +52,24 @@ public sealed partial class CatalogCodec
             validated,
             JsonOptions,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<byte[]> ToCanonicalBytesAsync(
+        Catalog catalog,
+        CancellationToken cancellationToken)
+    {
+        await using var output = new MemoryStream();
+        await WriteAsync(catalog, output, cancellationToken).ConfigureAwait(false);
+        return output.ToArray();
+    }
+
+    public async Task<string> ComputeCanonicalSha256Async(
+        Catalog catalog,
+        CancellationToken cancellationToken)
+    {
+        var bytes = await ToCanonicalBytesAsync(catalog, cancellationToken)
+            .ConfigureAwait(false);
+        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     }
 
     private static Catalog Validate(Catalog? catalog)
@@ -184,4 +203,3 @@ public sealed partial class CatalogCodec
             writer.WriteStringValue(value.ToUniversalTime());
     }
 }
-
