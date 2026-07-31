@@ -1,0 +1,11 @@
+bin/
+obj/
+artifacts/
+.vs/
+.worktrees/
+*.user
+*.suo
+TestResults/
+google-oauth-client.json
+*.zip
+
