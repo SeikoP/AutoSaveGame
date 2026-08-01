@@ -4,6 +4,7 @@ artifacts/
 installer/Output/
 .env
 cr/
+client_secret_*.apps.googleusercontent.com.json
 .vs/
 .worktrees/
 *.user
