@@ -8,10 +8,14 @@ namespace AutoSaveGame.App.ViewModels;
 public sealed class GameItemViewModel : INotifyPropertyChanged
 {
     private readonly RuntimeGame runtimeGame;
+    private readonly IUiDispatcher uiDispatcher;
 
-    public GameItemViewModel(RuntimeGame runtimeGame)
+    public GameItemViewModel(
+        RuntimeGame runtimeGame,
+        IUiDispatcher? uiDispatcher = null)
     {
         this.runtimeGame = runtimeGame;
+        this.uiDispatcher = uiDispatcher ?? new ImmediateUiDispatcher();
         runtimeGame.StateMachine.StatusChanged += OnStatusChanged;
     }
 
@@ -54,6 +58,17 @@ public sealed class GameItemViewModel : INotifyPropertyChanged
         : LastBackupUtc.Value.ToLocalTime().ToString("g");
 
     private void OnStatusChanged(object? sender, GameSyncStatus status)
+    {
+        if (!uiDispatcher.CheckAccess())
+        {
+            uiDispatcher.Post(() => NotifyStatusChanged());
+            return;
+        }
+
+        NotifyStatusChanged();
+    }
+
+    private void NotifyStatusChanged()
     {
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(StatusText));

@@ -10,18 +10,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IApplicationRuntime runtime;
     private readonly IUserPromptService prompts;
     private readonly SessionDiagnosticLog diagnosticLog;
+    private readonly IUiDispatcher uiDispatcher;
     private bool isBusy;
     private string statusMessage = "Sign in to load your save games.";
 
     public MainViewModel(
         IApplicationRuntime runtime,
         IUserPromptService prompts,
-        SessionDiagnosticLog? diagnosticLog = null)
+        SessionDiagnosticLog? diagnosticLog = null,
+        IUiDispatcher? uiDispatcher = null)
     {
         this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         this.prompts = prompts ?? throw new ArgumentNullException(nameof(prompts));
         this.diagnosticLog = diagnosticLog ?? new SessionDiagnosticLog();
-        runtime.GamesChanged += (_, _) => RefreshGames();
+        this.uiDispatcher = uiDispatcher ?? new ImmediateUiDispatcher();
+        runtime.GamesChanged += OnGamesChanged;
         SignInCommand = new AsyncCommand(SignInAsync, () => !IsBusy && !IsSignedIn);
         SignOutCommand = new AsyncCommand(SignOutAsync, () => !IsBusy && IsSignedIn);
         RestoreCommand = new AsyncCommand<GameItemViewModel>(
@@ -72,9 +75,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             isBusy = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsProgressVisible));
             RaiseCommandStates();
         }
     }
+
+    public bool IsProgressVisible => IsBusy;
 
     public string StatusMessage
     {
@@ -97,7 +103,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 displayName,
                 absolutePath,
                 CancellationToken.None),
-            "Game configuration saved.");
+            "Game configuration saved.",
+            busyMessage: "Saving game settings...");
     }
 
     public async Task SetWatchingAsync(GameItemViewModel game, bool enabled)
@@ -107,7 +114,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 game.GameId,
                 enabled,
                 CancellationToken.None),
-            enabled ? "Watching enabled." : "Watching disabled.");
+            enabled ? "Watching enabled." : "Watching disabled.",
+            busyMessage: "Updating monitoring...");
     }
 
     public async Task<bool> RequestExitAsync()
@@ -141,7 +149,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await RunBusyAsync(
             () => runtime.SignInAsync(CancellationToken.None),
             "Games loaded.",
-            "Google sign-in");
+            "Google sign-in",
+            "Connecting to Google Drive...");
         OnPropertyChanged(nameof(IsSignedIn));
     }
 
@@ -150,7 +159,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await RunBusyAsync(
             () => runtime.SignOutAsync(CancellationToken.None),
             "Signed out.",
-            "Google sign-out");
+            "Google sign-out",
+            "Signing out securely...");
         OnPropertyChanged(nameof(IsSignedIn));
     }
 
@@ -163,13 +173,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         await RunBusyAsync(
             () => runtime.RestoreAsync(game.GameId, CancellationToken.None),
-            "Restore completed.");
+            "Restore completed.",
+            busyMessage: $"Restoring {game.DisplayName}...");
     }
 
     private Task BackupNowAsync(GameItemViewModel game) =>
         RunBusyAsync(
             () => runtime.BackupNowAsync(game.GameId, CancellationToken.None),
-            "Backup completed.");
+            "Backup completed.",
+            busyMessage: $"Backing up {game.DisplayName}...");
 
     private async Task DeleteGameAsync(GameItemViewModel game)
     {
@@ -180,14 +192,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         await RunBusyAsync(
             () => runtime.DeleteGameAsync(game.GameId, CancellationToken.None),
-            "Game removed.");
+            "Game removed.",
+            busyMessage: $"Removing {game.DisplayName}...");
     }
 
     private async Task RunBusyAsync(
         Func<Task> action,
         string successMessage,
-        string operation = "Application operation")
+        string operation = "Application operation",
+        string busyMessage = "Working...")
     {
+        StatusMessage = busyMessage;
         IsBusy = true;
         try
         {
@@ -208,6 +223,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private void OnGamesChanged(object? sender, EventArgs e)
+    {
+        if (uiDispatcher.CheckAccess())
+        {
+            RefreshGames();
+            return;
+        }
+
+        uiDispatcher.Post(RefreshGames);
+    }
+
     private void RefreshGames()
     {
         Games.Clear();
@@ -215,7 +241,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                      item => item.Config.DisplayName,
                      StringComparer.CurrentCultureIgnoreCase))
         {
-            Games.Add(new GameItemViewModel(game));
+            Games.Add(new GameItemViewModel(game, uiDispatcher));
         }
 
         OnPropertyChanged(nameof(IsSignedIn));

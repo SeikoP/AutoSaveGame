@@ -41,6 +41,47 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task GamesChanged_FromBackgroundThread_IsMarshaledToUiDispatcher()
+    {
+        var dispatcher = new RecordingUiDispatcher();
+        var runtime = new FakeRuntime([])
+        {
+            RaiseGamesChangedOnBackgroundThread = true,
+            RuntimeGames = [CreateRuntimeGame()],
+        };
+        var sut = new MainViewModel(
+            runtime,
+            new FakePrompts([]),
+            uiDispatcher: dispatcher);
+
+        await sut.SignInCommand.ExecuteAsync();
+
+        Assert.True(dispatcher.PostCount > 0);
+        Assert.Equal("Hades", sut.Games.Single().DisplayName);
+    }
+
+    [Fact]
+    public async Task SignInCommand_ShowsProgressWhileAuthenticationIsRunning()
+    {
+        var releaseSignIn = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new FakeRuntime([]) { SignInBlocker = releaseSignIn.Task };
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+
+        var signIn = sut.SignInCommand.ExecuteAsync();
+
+        Assert.True(sut.IsBusy);
+        Assert.True(sut.IsProgressVisible);
+        Assert.Equal("Connecting to Google Drive...", sut.StatusMessage);
+
+        releaseSignIn.SetResult();
+        await signIn;
+
+        Assert.False(sut.IsProgressVisible);
+        Assert.Equal("Games loaded.", sut.StatusMessage);
+    }
+
+    [Fact]
     public async Task SignOutCommand_ClearsSignedInDashboard()
     {
         var runtime = new FakeRuntime([])
@@ -156,6 +197,10 @@ public sealed class MainViewModelTests
     {
         public Exception? SignInError { get; init; }
 
+        public Task? SignInBlocker { get; init; }
+
+        public bool RaiseGamesChangedOnBackgroundThread { get; init; }
+
         public bool IsSignedIn { get; private set; }
 
         public IReadOnlyList<RuntimeGame> RuntimeGames { get; set; } = [];
@@ -166,17 +211,28 @@ public sealed class MainViewModelTests
 
         public event EventHandler? GamesChanged;
 
-        public Task SignInAsync(CancellationToken cancellationToken)
+        public async Task SignInAsync(CancellationToken cancellationToken)
         {
             events.Add("signin");
             if (SignInError is not null)
             {
-                return Task.FromException(SignInError);
+                throw SignInError;
+            }
+
+            if (SignInBlocker is not null)
+            {
+                await SignInBlocker;
             }
 
             IsSignedIn = true;
-            GamesChanged?.Invoke(this, EventArgs.Empty);
-            return Task.CompletedTask;
+            if (RaiseGamesChangedOnBackgroundThread)
+            {
+                await Task.Run(() => GamesChanged?.Invoke(this, EventArgs.Empty));
+            }
+            else
+            {
+                GamesChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         public Task AddOrUpdateGameAsync(
@@ -248,6 +304,19 @@ public sealed class MainViewModelTests
             ErrorTitle = title;
             ErrorMessage = message;
             CorrelationId = correlationId;
+        }
+    }
+
+    private sealed class RecordingUiDispatcher : IUiDispatcher
+    {
+        public int PostCount { get; private set; }
+
+        public bool CheckAccess() => false;
+
+        public void Post(Action action)
+        {
+            PostCount++;
+            action();
         }
     }
 }

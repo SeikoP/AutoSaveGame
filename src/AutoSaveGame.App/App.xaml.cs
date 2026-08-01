@@ -1,11 +1,13 @@
 using AutoSaveGame.App.Services;
 using AutoSaveGame.App.Smoke;
+using System.Security.Principal;
 
 namespace AutoSaveGame.App;
 
 public partial class App : System.Windows.Application
 {
     private IApplicationRuntime? runtime;
+    private SingleInstanceCoordinator? singleInstance;
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
@@ -36,15 +38,35 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        var userIdentity = WindowsIdentity.GetCurrent().User?.Value
+            ?? Environment.UserName;
+        singleInstance = new SingleInstanceCoordinator(
+            $"Local\\AutoSaveGame.{userIdentity}");
+        if (!singleInstance.TryAcquire())
+        {
+            singleInstance.SignalPrimary();
+            Shutdown();
+            return;
+        }
+
         runtime = ApplicationRuntimeFactory.Create();
         var window = new MainWindow(runtime, new UserPromptService());
         MainWindow = window;
+        singleInstance.StartListening(() =>
+            Dispatcher.BeginInvoke(window.RestoreFromTray));
         window.Show();
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
-        runtime?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        base.OnExit(e);
+        try
+        {
+            runtime?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+        finally
+        {
+            singleInstance?.Dispose();
+            base.OnExit(e);
+        }
     }
 }

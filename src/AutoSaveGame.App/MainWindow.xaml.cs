@@ -17,9 +17,19 @@ public partial class MainWindow : Window
         IUserPromptService prompts)
     {
         InitializeComponent();
-        viewModel = new MainViewModel(runtime, prompts);
+        viewModel = new MainViewModel(
+            runtime,
+            prompts,
+            uiDispatcher: new WpfUiDispatcher(Dispatcher));
         DataContext = viewModel;
         trayIcon = new TrayIconService(this, ExitAsync);
+    }
+
+    public void RestoreFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
     }
 
     private async void AddGame_Click(object sender, RoutedEventArgs e)
