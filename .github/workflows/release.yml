@@ -50,9 +50,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null | Out-Null
-          if ($LASTEXITCODE -eq 0) {
+          $releaseViewExitCode = $LASTEXITCODE
+          if ($releaseViewExitCode -eq 0) {
             throw "Release already exists: $env:RELEASE_TAG"
           }
+          Write-Output "No existing release found for $env:RELEASE_TAG."
+          exit 0
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
@@ -164,4 +167,3 @@ jobs:
             artifacts/release/SHA256SUMS.txt `
             --repo $env:GITHUB_REPOSITORY `
             --verify-tag --generate-notes --title "AutoSaveGame $env:RELEASE_TAG"
-
