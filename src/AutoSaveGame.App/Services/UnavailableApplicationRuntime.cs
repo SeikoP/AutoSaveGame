@@ -16,7 +16,9 @@ internal sealed class UnavailableApplicationRuntime(string message)
     }
 
     public Task SignInAsync(CancellationToken cancellationToken) =>
-        Task.FromException(new InvalidOperationException(message));
+        Task.FromException(new Infrastructure.GoogleDrive.UserAuthenticationException(
+            Infrastructure.GoogleDrive.AuthenticationFailureKind.InvalidBuild,
+            message));
 
     public Task AddOrUpdateGameAsync(
         Guid? gameId,

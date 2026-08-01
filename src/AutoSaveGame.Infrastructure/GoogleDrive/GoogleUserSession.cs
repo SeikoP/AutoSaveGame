@@ -1,6 +1,7 @@
 using AutoSaveGame.Core.Abstractions;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 
@@ -39,28 +40,85 @@ public sealed class GoogleUserSession : IUserSession, IDisposable
             return;
         }
 
-        var flow = new GoogleAuthorizationCodeFlow(
-            new GoogleAuthorizationCodeFlow.Initializer
-            {
-                ClientSecrets = new ClientSecrets
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(5));
+
+        try
+        {
+            var flow = new GoogleAuthorizationCodeFlow(
+                new GoogleAuthorizationCodeFlow.Initializer
                 {
-                    ClientId = options.ClientId,
-                    ClientSecret = options.ClientSecret,
-                },
-                DataStore = dataStore,
-                Scopes = RequiredScopes,
-                Prompt = "select_account",
-            });
-        var app = new AuthorizationCodeInstalledApp(flow, new LocalServerCodeReceiver());
-        credential = await app.AuthorizeAsync(
-            SessionUserKey,
-            cancellationToken).ConfigureAwait(false);
-        driveService = new DriveService(
-            new BaseClientService.Initializer
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "AutoSaveGame",
-            });
+                    ClientSecrets = new ClientSecrets
+                    {
+                        ClientId = options.ClientId,
+                        ClientSecret = options.ClientSecret,
+                    },
+                    DataStore = dataStore,
+                    Scopes = RequiredScopes,
+                    Prompt = "select_account",
+                });
+            var app = new AuthorizationCodeInstalledApp(
+                flow,
+                new LocalServerCodeReceiver());
+            credential = await app.AuthorizeAsync(
+                SessionUserKey,
+                timeout.Token).ConfigureAwait(false);
+            driveService = new DriveService(
+                new BaseClientService.Initializer
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = "AutoSaveGame",
+                });
+        }
+        catch (OperationCanceledException exception)
+            when (!cancellationToken.IsCancellationRequested
+                  && timeout.IsCancellationRequested)
+        {
+            throw new UserAuthenticationException(
+                AuthenticationFailureKind.TimedOut,
+                "Google sign-in timed out.",
+                exception);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (TokenResponseException exception)
+        {
+            var kind = string.Equals(
+                exception.Error?.Error,
+                "access_denied",
+                StringComparison.OrdinalIgnoreCase)
+                ? AuthenticationFailureKind.Canceled
+                : AuthenticationFailureKind.Rejected;
+            throw new UserAuthenticationException(
+                kind,
+                "Google rejected the authorization request.",
+                exception);
+        }
+        catch (Exception exception)
+        {
+            throw new UserAuthenticationException(
+                ClassifyFailure(exception, timedOut: false),
+                "Google sign-in could not return to AutoSaveGame.",
+                exception);
+        }
+    }
+
+    public static AuthenticationFailureKind ClassifyFailure(
+        Exception exception,
+        bool timedOut)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        if (timedOut)
+        {
+            return AuthenticationFailureKind.TimedOut;
+        }
+
+        return exception is HttpRequestException
+            ? AuthenticationFailureKind.Network
+            : AuthenticationFailureKind.BrowserCallback;
     }
 
     public async Task SignOutAsync(CancellationToken cancellationToken)

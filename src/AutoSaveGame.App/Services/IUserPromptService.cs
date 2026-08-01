@@ -17,6 +17,5 @@ public interface IUserPromptService
 
     Task<ExitChoice> ConfirmExitAsync();
 
-    void ShowError(string message);
+    void ShowError(string title, string message, string? correlationId);
 }
-

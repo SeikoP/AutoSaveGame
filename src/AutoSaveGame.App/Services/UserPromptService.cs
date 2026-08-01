@@ -46,10 +46,9 @@ public sealed class UserPromptService : IUserPromptService
         });
     }
 
-    public void ShowError(string message) =>
-        WpfMessageBox.Show(
-            message,
-            "AutoSaveGame",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+    public void ShowError(string title, string message, string? correlationId)
+    {
+        var dialog = new Views.ErrorDialog(title, message, correlationId);
+        dialog.ShowDialog();
+    }
 }

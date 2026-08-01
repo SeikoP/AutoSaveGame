@@ -64,6 +64,43 @@ public sealed class MainViewModelTests
         Assert.Equal("Restore completed.", sut.StatusMessage);
     }
 
+    [Fact]
+    public async Task SignInCommand_ShowsSafeMessageAndCorrelationIdWhenAuthenticationFails()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"AutoSaveGame-ViewModelTest-{Guid.NewGuid():N}");
+        try
+        {
+            var events = new List<string>();
+            var runtime = new FakeRuntime(events)
+            {
+                SignInError = new Infrastructure.GoogleDrive.UserAuthenticationException(
+                    Infrastructure.GoogleDrive.AuthenticationFailureKind.Network,
+                    "raw network details"),
+            };
+            var prompts = new FakePrompts(events);
+            var sut = new MainViewModel(
+                runtime,
+                prompts,
+                new SessionDiagnosticLog(root));
+
+            await sut.SignInCommand.ExecuteAsync();
+
+            Assert.Equal("Google sign-in failed", prompts.ErrorTitle);
+            Assert.Contains("Cannot reach Google", prompts.ErrorMessage);
+            Assert.DoesNotContain("raw network details", prompts.ErrorMessage);
+            Assert.False(string.IsNullOrWhiteSpace(prompts.CorrelationId));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static RuntimeGame CreateRuntimeGame()
     {
         var config = new GameConfig(
@@ -85,6 +122,8 @@ public sealed class MainViewModelTests
 
     private sealed class FakeRuntime(List<string> events) : IApplicationRuntime
     {
+        public Exception? SignInError { get; init; }
+
         public bool IsSignedIn { get; private set; }
 
         public IReadOnlyList<RuntimeGame> RuntimeGames { get; init; } = [];
@@ -98,6 +137,11 @@ public sealed class MainViewModelTests
         public Task SignInAsync(CancellationToken cancellationToken)
         {
             events.Add("signin");
+            if (SignInError is not null)
+            {
+                return Task.FromException(SignInError);
+            }
+
             IsSignedIn = true;
             GamesChanged?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
@@ -138,6 +182,12 @@ public sealed class MainViewModelTests
     {
         public bool ConfirmGameClosed { get; init; }
 
+        public string? ErrorTitle { get; private set; }
+
+        public string? ErrorMessage { get; private set; }
+
+        public string? CorrelationId { get; private set; }
+
         public Task ShowPublicComputerWarningAsync()
         {
             events.Add("warning");
@@ -156,8 +206,11 @@ public sealed class MainViewModelTests
         public Task<ExitChoice> ConfirmExitAsync() =>
             Task.FromResult(ExitChoice.ExitAnyway);
 
-        public void ShowError(string message)
+        public void ShowError(string title, string message, string? correlationId)
         {
+            ErrorTitle = title;
+            ErrorMessage = message;
+            CorrelationId = correlationId;
         }
     }
 }

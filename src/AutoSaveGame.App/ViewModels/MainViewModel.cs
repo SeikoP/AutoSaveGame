@@ -9,15 +9,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly IApplicationRuntime runtime;
     private readonly IUserPromptService prompts;
+    private readonly SessionDiagnosticLog diagnosticLog;
     private bool isBusy;
     private string statusMessage = "Sign in to load your save games.";
 
     public MainViewModel(
         IApplicationRuntime runtime,
-        IUserPromptService prompts)
+        IUserPromptService prompts,
+        SessionDiagnosticLog? diagnosticLog = null)
     {
         this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         this.prompts = prompts ?? throw new ArgumentNullException(nameof(prompts));
+        this.diagnosticLog = diagnosticLog ?? new SessionDiagnosticLog();
         runtime.GamesChanged += (_, _) => RefreshGames();
         SignInCommand = new AsyncCommand(SignInAsync, () => !IsBusy && !IsSignedIn);
         RestoreCommand = new AsyncCommand<GameItemViewModel>(
@@ -130,7 +133,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await prompts.ShowPublicComputerWarningAsync();
         await RunBusyAsync(
             () => runtime.SignInAsync(CancellationToken.None),
-            "Games loaded.");
+            "Games loaded.",
+            "Google sign-in");
         OnPropertyChanged(nameof(IsSignedIn));
     }
 
@@ -163,7 +167,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             "Game removed.");
     }
 
-    private async Task RunBusyAsync(Func<Task> action, string successMessage)
+    private async Task RunBusyAsync(
+        Func<Task> action,
+        string successMessage,
+        string operation = "Application operation")
     {
         IsBusy = true;
         try
@@ -174,8 +181,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            StatusMessage = exception.Message;
-            prompts.ShowError(exception.Message);
+            var error = UserFacingError.From(exception);
+            var correlationId = diagnosticLog.Write(exception, operation);
+            StatusMessage = error.Message;
+            prompts.ShowError(error.Title, error.Message, correlationId);
         }
         finally
         {
