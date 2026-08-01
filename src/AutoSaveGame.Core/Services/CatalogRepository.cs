@@ -175,6 +175,107 @@ public sealed class CatalogRepository(
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<GameCloudDeleteResult> DeleteGameCloudDataAsync(
+        Guid gameId,
+        CancellationToken cancellationToken)
+    {
+        var loaded = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        if (loaded.Kind == CatalogLoadKind.Conflict)
+        {
+            return new GameCloudDeleteResult(
+                GameCloudDeleteKind.Conflict,
+                null,
+                [],
+                [],
+                "Cloud catalog has conflicting generations.");
+        }
+
+        if (loaded.Kind == CatalogLoadKind.Corrupt || loaded.Catalog is null)
+        {
+            return new GameCloudDeleteResult(
+                GameCloudDeleteKind.Failed,
+                null,
+                [],
+                [],
+                "Cloud catalog is corrupt.");
+        }
+
+        var current = loaded.Catalog;
+        var game = current.Games.SingleOrDefault(item => item.GameId == gameId);
+        if (game is null)
+        {
+            return new GameCloudDeleteResult(
+                GameCloudDeleteKind.NotFound,
+                current,
+                [],
+                [],
+                "Game is not in catalog.");
+        }
+
+        var archiveFileIds = game.Snapshot?.ArchiveFileId is null
+            ? []
+            : new[] { game.Snapshot.ArchiveFileId };
+        if (archiveFileIds.Length == 0)
+        {
+            return new GameCloudDeleteResult(
+                GameCloudDeleteKind.AlreadyEmpty,
+                current,
+                [],
+                []);
+        }
+
+        var next = current with
+        {
+            Generation = current.Generation + 1,
+            Games = current.Games
+                .Select(item => item.GameId == gameId
+                    ? item with { Snapshot = null }
+                    : item)
+                .ToArray(),
+        };
+        var commit = await SaveCatalogAsync(
+            current,
+            next,
+            cancellationToken).ConfigureAwait(false);
+        if (commit.Kind != CatalogCommitKind.Success || commit.Catalog is null)
+        {
+            return new GameCloudDeleteResult(
+                commit.Kind == CatalogCommitKind.Conflict
+                    ? GameCloudDeleteKind.Conflict
+                    : GameCloudDeleteKind.Failed,
+                commit.Catalog,
+                [],
+                [],
+                commit.Message ?? "Catalog update failed.");
+        }
+
+        var deleted = new List<string>();
+        var failed = new List<string>();
+        foreach (var fileId in archiveFileIds)
+        {
+            try
+            {
+                await cloud.DeleteAsync(fileId, cancellationToken).ConfigureAwait(false);
+                deleted.Add(fileId);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                failed.Add(fileId);
+            }
+        }
+
+        return new GameCloudDeleteResult(
+            failed.Count == 0
+                ? GameCloudDeleteKind.Deleted
+                : GameCloudDeleteKind.CleanupIncomplete,
+            commit.Catalog,
+            deleted,
+            failed,
+            failed.Count == 0
+                ? null
+                : "Cloud catalog was updated, but some archive files could not be deleted.");
+    }
+
     public async Task CleanupOrphansAsync(CancellationToken cancellationToken)
     {
         var loaded = await LoadAsync(cancellationToken).ConfigureAwait(false);

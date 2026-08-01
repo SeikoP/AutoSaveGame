@@ -189,6 +189,67 @@ public sealed class CatalogRepositoryTests
         Assert.Equal(reported[^1].TotalBytes, reported[^1].BytesTransferred);
     }
 
+    [Fact]
+    public async Task DeleteGameCloudDataAsync_ClearsOnlySelectedGameSnapshotAndDeletesItsArchive()
+    {
+        var cloud = new InMemoryCloudObjectStore { ReturnChecksums = true };
+        var selectedArchiveId = cloud.Seed("archive-8edcd84d82944c1e81c5569991c58499-selected.zip", "selected-save");
+        var otherGameId = Guid.Parse("b8d2d4ab-d02b-43a1-8f69-b2f8663fd48e");
+        var otherArchiveId = cloud.Seed("archive-b8d2d4abd02b43a18f69b2f8663fd48e-other.zip", "other-save");
+        await SeedCatalogAsync(cloud, 1, selectedArchiveId, otherGameId, otherArchiveId);
+        var sut = CreateRepository(cloud);
+
+        var result = await sut.DeleteGameCloudDataAsync(
+            GameId,
+            TestContext.Current.CancellationToken);
+
+        var loaded = await sut.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(GameCloudDeleteKind.Deleted, result.Kind);
+        Assert.Null(loaded.Catalog?.Games.Single(game => game.GameId == GameId).Snapshot);
+        Assert.NotNull(loaded.Catalog?.Games.Single(game => game.GameId == otherGameId).Snapshot);
+        Assert.False(cloud.ContainsId(selectedArchiveId));
+        Assert.True(cloud.ContainsId(otherArchiveId));
+        Assert.Contains(selectedArchiveId, cloud.DeleteCalls);
+        Assert.DoesNotContain(otherArchiveId, cloud.DeleteCalls);
+    }
+
+    [Fact]
+    public async Task DeleteGameCloudDataAsync_DoesNotDeleteArchiveWhenCatalogCommitFails()
+    {
+        var cloud = new InMemoryCloudObjectStore { ReturnChecksums = true };
+        var archiveId = cloud.Seed("archive-selected.zip", "selected-save");
+        await SeedCatalogAsync(cloud, 1, archiveId);
+        cloud.FailUploadCall = 1;
+        var sut = CreateRepository(cloud);
+
+        var result = await sut.DeleteGameCloudDataAsync(
+            GameId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(GameCloudDeleteKind.Failed, result.Kind);
+        Assert.True(cloud.ContainsId(archiveId));
+        Assert.Empty(cloud.DeleteCalls);
+        Assert.NotNull((await sut.LoadAsync(TestContext.Current.CancellationToken)).Catalog?.Games.Single().Snapshot);
+    }
+
+    [Fact]
+    public async Task DeleteGameCloudDataAsync_ReportsCleanupIncompleteAfterCatalogCommit()
+    {
+        var cloud = new InMemoryCloudObjectStore { ReturnChecksums = true };
+        var archiveId = cloud.Seed("archive-selected.zip", "selected-save");
+        await SeedCatalogAsync(cloud, 1, archiveId);
+        cloud.FailDeleteIds.Add(archiveId);
+        var sut = CreateRepository(cloud);
+
+        var result = await sut.DeleteGameCloudDataAsync(
+            GameId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(GameCloudDeleteKind.CleanupIncomplete, result.Kind);
+        Assert.Equal([archiveId], result.FailedFileIds);
+        Assert.Null((await sut.LoadAsync(TestContext.Current.CancellationToken)).Catalog?.Games.Single().Snapshot);
+    }
+
     private static CatalogRepository CreateRepository(InMemoryCloudObjectStore cloud) =>
         new(
             cloud,
@@ -200,7 +261,9 @@ public sealed class CatalogRepositoryTests
     private static async Task<Catalog> SeedCatalogAsync(
         InMemoryCloudObjectStore cloud,
         long generation,
-        string? archiveFileId = null)
+        string? archiveFileId = null,
+        Guid? otherGameId = null,
+        string? otherArchiveFileId = null)
     {
         var snapshot = archiveFileId is null
             ? null
@@ -211,17 +274,32 @@ public sealed class CatalogRepositoryTests
                 8,
                 DateTimeOffset.UnixEpoch,
                 MachineId);
-        var catalog = new Catalog(
-            1,
-            generation,
-            [
-                new GameConfig(
-                    GameId,
-                    "Hades",
-                    @"%USERPROFILE%\Documents\Hades",
-                    snapshot,
-                    true),
-            ]);
+        var games = new List<GameConfig>
+        {
+            new(
+                GameId,
+                "Hades",
+                @"%USERPROFILE%\Documents\Hades",
+                snapshot,
+                true),
+        };
+        if (otherGameId is not null)
+        {
+            games.Add(new GameConfig(
+                otherGameId.Value,
+                "Celeste",
+                @"%USERPROFILE%\Documents\Celeste",
+                new SnapshotDescriptor(
+                    otherArchiveFileId ?? throw new ArgumentNullException(nameof(otherArchiveFileId)),
+                    new string('c', 64),
+                    new string('d', 64),
+                    10,
+                    DateTimeOffset.UnixEpoch,
+                    MachineId),
+                true));
+        }
+
+        var catalog = new Catalog(1, generation, games);
         await using var output = new MemoryStream();
         await new CatalogCodec().WriteAsync(
             catalog,

@@ -19,6 +19,9 @@ public interface ICatalogRepository
         Guid sourceMachineId,
         CancellationToken cancellationToken);
 
+    Task<GameCloudDeleteResult> DeleteGameCloudDataAsync(
+        Guid gameId,
+        CancellationToken cancellationToken);
+
     Task CleanupOrphansAsync(CancellationToken cancellationToken);
 }
-

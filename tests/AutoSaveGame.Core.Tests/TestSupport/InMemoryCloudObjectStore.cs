@@ -21,6 +21,10 @@ internal sealed class InMemoryCloudObjectStore : ICloudObjectStore
 
     public string? UploadChecksumOverride { get; set; }
 
+    public List<string> DeleteCalls { get; } = [];
+
+    public HashSet<string> FailDeleteIds { get; } = new(StringComparer.Ordinal);
+
     public IReadOnlyCollection<string> Names =>
         objects.Values.Select(item => item.Name).ToArray();
 
@@ -95,6 +99,14 @@ internal sealed class InMemoryCloudObjectStore : ICloudObjectStore
 
     public Task DeleteAsync(string fileId, CancellationToken cancellationToken)
     {
+        DeleteCalls.Add(fileId);
+        if (FailDeleteIds.Contains(fileId))
+        {
+            throw new CloudStoreException(
+                CloudStoreErrorKind.Network,
+                $"Injected delete failure for {fileId}.");
+        }
+
         objects.Remove(fileId);
         return Task.CompletedTask;
     }
