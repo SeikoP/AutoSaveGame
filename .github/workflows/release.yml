@@ -1,0 +1,167 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v(\d+\.\d+\.\d+(?:\.\d+)?)$') {
+            throw "Release tag must be vMAJOR.MINOR.PATCH: $env:RELEASE_TAG"
+          }
+          git rev-parse --verify "$env:RELEASE_TAG^{commit}" | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw "Tag does not exist: $env:RELEASE_TAG"
+          }
+          "RELEASE_VERSION=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Refuse an existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release already exists: $env:RELEASE_TAG"
+          }
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore and test
+        shell: pwsh
+        run: |
+          dotnet restore AutoSaveGame.sln
+          dotnet test AutoSaveGame.sln -c Release --no-restore
+          dotnet build AutoSaveGame.sln -c Release --no-restore
+
+      - name: Create protected OAuth build input
+        shell: pwsh
+        env:
+          OAUTH_CLIENT_ID: ${{ secrets.AUTOSAVEGAME_GOOGLE_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET: ${{ secrets.AUTOSAVEGAME_GOOGLE_CLIENT_SECRET }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:OAUTH_CLIENT_ID) -or
+              [string]::IsNullOrWhiteSpace($env:OAUTH_CLIENT_SECRET)) {
+            throw 'The release environment OAuth secrets are required.'
+          }
+          $config = [ordered]@{
+            clientId = $env:OAUTH_CLIENT_ID
+            clientSecret = $env:OAUTH_CLIENT_SECRET
+          }
+          $config | ConvertTo-Json -Compress | Set-Content `
+            -LiteralPath "$env:RUNNER_TEMP\autosavegame-oauth.json" `
+            -Encoding utf8 -NoNewline
+
+      - name: Publish release application
+        shell: pwsh
+        run: |
+          dotnet publish src/AutoSaveGame.App/AutoSaveGame.App.csproj `
+            -c Release -r win-x64 --self-contained true --no-restore `
+            -p:AutoSaveGameOAuthConfig="$env:RUNNER_TEMP\autosavegame-oauth.json" `
+            -p:Version="$env:RELEASE_VERSION" `
+            -o artifacts/win-x64
+
+      - name: Smoke published executable
+        shell: powershell
+        run: >-
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File scripts/SmokeTest.ps1
+          -Executable artifacts/win-x64/AutoSaveGame.exe
+
+      - name: Install Inno Setup compiler
+        shell: pwsh
+        run: |
+          $isccCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          )
+          if (-not ($isccCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1)) {
+            winget install --id JRSoftware.InnoSetup --exact --source winget `
+              --scope user --silent --accept-package-agreements `
+              --accept-source-agreements --disable-interactivity
+            if ($LASTEXITCODE -ne 0) {
+              throw "Inno Setup installation failed with exit code $LASTEXITCODE."
+            }
+          }
+
+      - name: Build and smoke installer
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass `
+            -File scripts/Build-Installer.ps1 `
+            -PublishDirectory artifacts/win-x64 `
+            -Version $env:RELEASE_VERSION `
+            -OutputDirectory artifacts/release
+          powershell -NoProfile -ExecutionPolicy Bypass `
+            -File scripts/Test-Installer.ps1 `
+            -Installer artifacts/release/AutoSaveGame-Setup.exe `
+            -ExpectedVersion $env:RELEASE_VERSION
+
+      - name: Build portable archive and checksums
+        shell: pwsh
+        run: |
+          $releaseDirectory = Resolve-Path 'artifacts/release'
+          $zipPath = Join-Path $releaseDirectory 'AutoSaveGame-win-x64.zip'
+          Compress-Archive -Path 'artifacts/win-x64/*' -DestinationPath $zipPath -CompressionLevel Optimal
+          $assets = @(
+            $zipPath,
+            (Join-Path $releaseDirectory 'AutoSaveGame-Setup.exe')
+          )
+          $lines = foreach ($asset in $assets) {
+            $hash = [System.Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($asset))
+            $hashText = [BitConverter]::ToString($hash).Replace('-', '')
+            "$hashText  $([System.IO.Path]::GetFileName($asset))"
+          }
+          $lines | Set-Content -LiteralPath (Join-Path $releaseDirectory 'SHA256SUMS.txt') -Encoding ascii
+
+      - name: Verify bootstrap checksum gate
+        shell: powershell
+        run: >-
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File scripts/Test-Install.ps1
+
+      - name: Publish immutable GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:RELEASE_TAG `
+            artifacts/release/AutoSaveGame-win-x64.zip `
+            artifacts/release/AutoSaveGame-Setup.exe `
+            artifacts/release/SHA256SUMS.txt `
+            --repo $env:GITHUB_REPOSITORY `
+            --verify-tag --generate-notes --title "AutoSaveGame $env:RELEASE_TAG"
+
