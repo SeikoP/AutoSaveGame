@@ -117,6 +117,18 @@ public sealed class CatalogRepository(
                     null,
                     "Uploaded archive size does not match the local snapshot.");
             }
+
+            if (!string.IsNullOrWhiteSpace(uploadedArchive.Sha256Checksum)
+                && !string.Equals(
+                    uploadedArchive.Sha256Checksum,
+                    snapshot.ArchiveSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new CatalogCommitResult(
+                    CatalogCommitKind.Failed,
+                    null,
+                    "Uploaded archive checksum does not match the local snapshot.");
+            }
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException)
@@ -127,8 +139,10 @@ public sealed class CatalogRepository(
                 exception.Message);
         }
 
-        var secondPreflight = await VerifyExpectedAsync(expected, cancellationToken)
-            .ConfigureAwait(false);
+        var secondPreflight = await VerifyCatalogFilesUnchangedAsync(
+            expected,
+            preflight.CurrentFileIds,
+            cancellationToken).ConfigureAwait(false);
         if (secondPreflight.Result is not null)
         {
             return secondPreflight.Result;
@@ -224,6 +238,25 @@ public sealed class CatalogRepository(
         return new Preflight(null, current.CatalogFileIds);
     }
 
+    private async Task<Preflight> VerifyCatalogFilesUnchangedAsync(
+        Catalog expected,
+        IReadOnlyList<string> expectedFileIds,
+        CancellationToken cancellationToken)
+    {
+        var currentObjects = await cloud.ListAsync("catalog-", cancellationToken)
+            .ConfigureAwait(false);
+        var currentFileIds = currentObjects.Select(item => item.FileId).ToArray();
+        if (currentFileIds.Length == expectedFileIds.Count
+            && currentFileIds.ToHashSet(StringComparer.Ordinal)
+                .SetEquals(expectedFileIds))
+        {
+            return new Preflight(null, currentFileIds);
+        }
+
+        return await VerifyExpectedAsync(expected, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     private async Task<CatalogCommitResult> UploadAndVerifyCatalogAsync(
         Catalog next,
         IReadOnlyList<string> previousCatalogFileIds,
@@ -248,26 +281,45 @@ public sealed class CatalogRepository(
                     "Uploaded catalog size does not match local metadata.");
             }
 
-            await using var verification = new MemoryStream();
-            await cloud.DownloadAsync(
-                uploaded.FileId,
-                verification,
-                cancellationToken).ConfigureAwait(false);
-            verification.Position = 0;
-            var verified = await codec.ReadAsync(verification, cancellationToken)
-                .ConfigureAwait(false);
             var expectedHash = await codec.ComputeCanonicalSha256Async(
                 next,
                 cancellationToken).ConfigureAwait(false);
-            var verifiedHash = await codec.ComputeCanonicalSha256Async(
-                verified,
-                cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(expectedHash, verifiedHash, StringComparison.Ordinal))
+            Catalog verified;
+            if (!string.IsNullOrWhiteSpace(uploaded.Sha256Checksum))
             {
-                return new CatalogCommitResult(
-                    CatalogCommitKind.Failed,
-                    null,
-                    "Uploaded catalog could not be verified.");
+                if (!string.Equals(
+                    expectedHash,
+                    uploaded.Sha256Checksum,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return new CatalogCommitResult(
+                        CatalogCommitKind.Failed,
+                        null,
+                        "Uploaded catalog could not be verified.");
+                }
+
+                verified = next;
+            }
+            else
+            {
+                await using var verification = new MemoryStream();
+                await cloud.DownloadAsync(
+                    uploaded.FileId,
+                    verification,
+                    cancellationToken).ConfigureAwait(false);
+                verification.Position = 0;
+                verified = await codec.ReadAsync(verification, cancellationToken)
+                    .ConfigureAwait(false);
+                var verifiedHash = await codec.ComputeCanonicalSha256Async(
+                    verified,
+                    cancellationToken).ConfigureAwait(false);
+                if (!string.Equals(expectedHash, verifiedHash, StringComparison.Ordinal))
+                {
+                    return new CatalogCommitResult(
+                        CatalogCommitKind.Failed,
+                        null,
+                        "Uploaded catalog could not be verified.");
+                }
             }
 
             foreach (var fileId in previousCatalogFileIds)
@@ -323,4 +375,3 @@ public sealed class CatalogRepository(
         CatalogCommitResult? Result,
         IReadOnlyList<string> CurrentFileIds);
 }
-

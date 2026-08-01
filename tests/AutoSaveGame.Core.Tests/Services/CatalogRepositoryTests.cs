@@ -104,6 +104,67 @@ public sealed class CatalogRepositoryTests
         Assert.Equal(2, cloud.Names.Count);
     }
 
+    [Fact]
+    public async Task SaveCatalogAsync_SkipsVerificationDownloadWhenDriveSha256Matches()
+    {
+        var cloud = new InMemoryCloudObjectStore { ReturnChecksums = true };
+        var expected = await SeedCatalogAsync(cloud, generation: 1);
+        var next = expected with { Generation = 2 };
+        var sut = CreateRepository(cloud);
+
+        var result = await sut.SaveCatalogAsync(
+            expected,
+            next,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(CatalogCommitKind.Success, result.Kind);
+        Assert.Equal(1, cloud.DownloadCalls);
+    }
+
+    [Fact]
+    public async Task CommitSnapshotAsync_RejectsArchiveWhenDriveSha256DoesNotMatch()
+    {
+        var cloud = new InMemoryCloudObjectStore
+        {
+            ReturnChecksums = true,
+            UploadChecksumOverride = new string('f', 64),
+        };
+        var expected = await SeedCatalogAsync(cloud, generation: 1);
+        var sut = CreateRepository(cloud);
+        await using var archive = new MemoryStream("new-save"u8.ToArray());
+
+        var result = await sut.CommitSnapshotAsync(
+            expected,
+            GameId,
+            archive,
+            Snapshot("new-content"),
+            MachineId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(CatalogCommitKind.Failed, result.Kind);
+        Assert.Equal(1, cloud.UploadCalls);
+    }
+
+    [Fact]
+    public async Task CommitSnapshotAsync_SkipsSecondCatalogDownloadWhenIdsAreUnchanged()
+    {
+        var cloud = new InMemoryCloudObjectStore { ReturnChecksums = true };
+        var expected = await SeedCatalogAsync(cloud, generation: 1);
+        var sut = CreateRepository(cloud);
+        await using var archive = new MemoryStream("new-save"u8.ToArray());
+
+        var result = await sut.CommitSnapshotAsync(
+            expected,
+            GameId,
+            archive,
+            Snapshot("new-content"),
+            MachineId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(CatalogCommitKind.Success, result.Kind);
+        Assert.Equal(1, cloud.DownloadCalls);
+    }
+
     private static CatalogRepository CreateRepository(InMemoryCloudObjectStore cloud) =>
         new(
             cloud,
@@ -164,4 +225,3 @@ public sealed class CatalogRepositoryTests
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }
-

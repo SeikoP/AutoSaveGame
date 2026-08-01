@@ -6,8 +6,10 @@ namespace AutoSaveGame.Infrastructure.GoogleDrive;
 public sealed class GoogleDriveObjectStore(IDriveGateway gateway) : ICloudObjectStore
 {
     private const string AppDataFolder = "appDataFolder";
-    private const string FileFields = "files(id,name,size,createdTime,modifiedTime)";
-    private const string SingleFileFields = "id,name,size,createdTime,modifiedTime";
+    private const string FileFields =
+        "files(id,name,size,createdTime,modifiedTime,sha256Checksum,md5Checksum)";
+    private const string SingleFileFields =
+        "id,name,size,createdTime,modifiedTime,sha256Checksum,md5Checksum";
 
     private readonly IDriveGateway gateway = gateway
         ?? throw new ArgumentNullException(nameof(gateway));
@@ -33,11 +35,23 @@ public sealed class GoogleDriveObjectStore(IDriveGateway gateway) : ICloudObject
         string name,
         Stream content,
         string contentType,
+        CancellationToken cancellationToken) =>
+        await UploadAsync(name, content, contentType, null, cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task<CloudObject> UploadAsync(
+        string name,
+        Stream content,
+        string contentType,
+        IProgress<CloudTransferProgress>? progress,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        var driveProgress = progress is null
+            ? null
+            : new DriveProgressAdapter(progress);
         var item = await gateway.UploadAsync(
             new DriveUploadSpec(
                 name,
@@ -45,6 +59,7 @@ public sealed class GoogleDriveObjectStore(IDriveGateway gateway) : ICloudObject
                 contentType,
                 SingleFileFields),
             content,
+            driveProgress,
             cancellationToken).ConfigureAwait(false);
         return Map(item);
     }
@@ -53,10 +68,24 @@ public sealed class GoogleDriveObjectStore(IDriveGateway gateway) : ICloudObject
         string fileId,
         Stream destination,
         CancellationToken cancellationToken)
+        => DownloadAsync(fileId, destination, null, cancellationToken);
+
+    public Task DownloadAsync(
+        string fileId,
+        Stream destination,
+        IProgress<CloudTransferProgress>? progress,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
         ArgumentNullException.ThrowIfNull(destination);
-        return gateway.DownloadAsync(fileId, destination, cancellationToken);
+        var driveProgress = progress is null
+            ? null
+            : new DriveProgressAdapter(progress);
+        return gateway.DownloadAsync(
+            fileId,
+            destination,
+            driveProgress,
+            cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -80,6 +109,16 @@ public sealed class GoogleDriveObjectStore(IDriveGateway gateway) : ICloudObject
             item.Name,
             item.Size,
             item.CreatedUtc,
-            item.ModifiedUtc);
-}
+            item.ModifiedUtc,
+            item.Sha256Checksum,
+            item.Md5Checksum);
 
+    private sealed class DriveProgressAdapter(
+        IProgress<CloudTransferProgress> target) : IProgress<DriveTransferProgress>
+    {
+        public void Report(DriveTransferProgress value) =>
+            target.Report(new CloudTransferProgress(
+                value.BytesTransferred,
+                value.TotalBytes));
+    }
+}

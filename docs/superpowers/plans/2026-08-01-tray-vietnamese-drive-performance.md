@@ -73,7 +73,7 @@ public void Report_ReplacesCurrentAndKeepsOnlyTwentyTerminalEntries()
 
 - [ ] **Step 2: Run `rtk dotnet test tests/AutoSaveGame.App.Tests --filter OperationMonitorTests` and confirm the missing-type failure.**
 - [ ] **Step 3: Implement immutable enums/record and a thread-safe monitor that raises `Changed` after releasing its lock.**
-- [ ] **Step 4: Re-run the focused tests and `rtk dotnet build AutoSaveGame.slnx`.**
+- [ ] **Step 4: Re-run the focused tests and `rtk dotnet build AutoSaveGame.sln`.**
 - [ ] **Step 5: Commit with `Add operation progress telemetry`.**
 
 ### Task 2: Drive checksums, byte progress, and retry classification
@@ -253,8 +253,8 @@ Assert.Equal("1,5 MB", VietnameseText.FormatBytes(1_572_864));
 - Consumes: all prior tasks.
 - Produces: tested installer and GitHub release artifact.
 
-- [ ] **Step 1: Run `rtk dotnet test AutoSaveGame.slnx` and require all tests to pass.**
-- [ ] **Step 2: Run `rtk dotnet build AutoSaveGame.slnx -c Release` and the repository smoke test.**
+- [ ] **Step 1: Run `rtk dotnet test AutoSaveGame.sln` and require all tests to pass.**
+- [ ] **Step 2: Run `rtk dotnet build AutoSaveGame.sln -c Release` and the repository smoke test.**
 - [ ] **Step 3: Benchmark the same save fixture before/after and record stage durations, Drive call count, transferred bytes, and checksum mode without recording content or credentials.**
 - [ ] **Step 4: Observe 60 seconds signed-in idle; verify average CPU below 1%, no upward handle/thread trend, one process, and one tray icon.**
 - [ ] **Step 5: Manually verify Vietnamese sign-in/error states, 360 x 480 placement, backup progress, verified restore, storage details, safe cleanup, and exit.**

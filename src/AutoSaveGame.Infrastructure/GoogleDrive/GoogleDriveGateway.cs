@@ -10,6 +10,8 @@ namespace AutoSaveGame.Infrastructure.GoogleDrive;
 
 public sealed class GoogleDriveGateway(Func<DriveService> getService) : IDriveGateway
 {
+    public const int UploadChunkSize = 8 * 1024 * 1024;
+
     private readonly Func<DriveService> getService = getService
         ?? throw new ArgumentNullException(nameof(getService));
 
@@ -46,6 +48,13 @@ public sealed class GoogleDriveGateway(Func<DriveService> getService) : IDriveGa
     public async Task<DriveItem> UploadAsync(
         DriveUploadSpec spec,
         Stream content,
+        CancellationToken cancellationToken) =>
+        await UploadAsync(spec, content, null, cancellationToken).ConfigureAwait(false);
+
+    public async Task<DriveItem> UploadAsync(
+        DriveUploadSpec spec,
+        Stream content,
+        IProgress<DriveTransferProgress>? progress,
         CancellationToken cancellationToken)
     {
         try
@@ -60,11 +69,15 @@ public sealed class GoogleDriveGateway(Func<DriveService> getService) : IDriveGa
                 content,
                 spec.ContentType);
             request.Fields = spec.Fields;
-            var progress = await request.UploadAsync(cancellationToken)
+            request.ChunkSize = UploadChunkSize;
+            long? totalBytes = content.CanSeek ? content.Length : null;
+            request.ProgressChanged += upload =>
+                progress?.Report(new DriveTransferProgress(upload.BytesSent, totalBytes));
+            var uploadResult = await request.UploadAsync(cancellationToken)
                 .ConfigureAwait(false);
-            if (progress.Status != UploadStatus.Completed || request.ResponseBody is null)
+            if (uploadResult.Status != UploadStatus.Completed || request.ResponseBody is null)
             {
-                throw progress.Exception
+                throw uploadResult.Exception
                     ?? new IOException("Google Drive upload did not complete.");
             }
 
@@ -79,16 +92,28 @@ public sealed class GoogleDriveGateway(Func<DriveService> getService) : IDriveGa
     public async Task DownloadAsync(
         string fileId,
         Stream destination,
+        CancellationToken cancellationToken) =>
+        await DownloadAsync(fileId, destination, null, cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task DownloadAsync(
+        string fileId,
+        Stream destination,
+        IProgress<DriveTransferProgress>? progress,
         CancellationToken cancellationToken)
     {
         try
         {
-            var progress = await getService().Files.Get(fileId)
-                .DownloadAsync(destination, cancellationToken)
+            var request = getService().Files.Get(fileId);
+            request.MediaDownloader.ProgressChanged += download =>
+                progress?.Report(new DriveTransferProgress(
+                    download.BytesDownloaded,
+                    null));
+            var downloadResult = await request.DownloadAsync(destination, cancellationToken)
                 .ConfigureAwait(false);
-            if (progress.Status != DownloadStatus.Completed)
+            if (downloadResult.Status != DownloadStatus.Completed)
             {
-                throw progress.Exception
+                throw downloadResult.Exception
                     ?? new IOException("Google Drive download did not complete.");
             }
         }
@@ -130,7 +155,9 @@ public sealed class GoogleDriveGateway(Func<DriveService> getService) : IDriveGa
             file.Name ?? throw new InvalidDataException("Drive response is missing file name."),
             file.Size ?? 0,
             file.CreatedTimeDateTimeOffset ?? DateTimeOffset.UnixEpoch,
-            file.ModifiedTimeDateTimeOffset ?? DateTimeOffset.UnixEpoch);
+            file.ModifiedTimeDateTimeOffset ?? DateTimeOffset.UnixEpoch,
+            file.Sha256Checksum,
+            file.Md5Checksum);
 
     private static bool IsCloudException(Exception exception) =>
         exception is GoogleApiException or HttpRequestException or IOException;
