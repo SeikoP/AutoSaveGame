@@ -17,6 +17,12 @@ public sealed class VietnameseCompactUiTests
             markup);
         Assert.DoesNotContain("Sign in with Google", markup);
         Assert.DoesNotContain("Protected games", markup);
+        Assert.Contains("GlassGameCard", markup);
+        Assert.Contains(
+            "Command=\"{Binding DataContext.SelectGameCommand, RelativeSource={RelativeSource AncestorType=Window}}\"",
+            markup);
+        Assert.Contains("Xóa dữ liệu Drive của game này", markup);
+        Assert.Contains("appDataFolder ẩn của Google Drive", markup);
     }
 
     [Theory]
