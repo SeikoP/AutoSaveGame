@@ -48,6 +48,16 @@ public sealed class GameItemViewModel : INotifyPropertyChanged
 
     public string? ArchiveSha256 => runtimeGame.Config.Snapshot?.ArchiveSha256;
 
+    public string ArchiveSizeText => VietnameseText.FormatBytes(ArchiveSize);
+
+    public string ArchiveFileIdDisplay => ArchiveFileId ?? "Chưa có file Drive";
+
+    public string ArchiveSha256Display => ArchiveSha256 is null
+        ? "Chưa có checksum"
+        : ArchiveSha256.Length <= 16
+            ? ArchiveSha256
+            : $"{ArchiveSha256[..16]}...";
+
     public string LastBackupText => LastBackupUtc is null
         ? "Chưa sao lưu"
         : VietnameseText.FormatDateTime(LastBackupUtc.Value);

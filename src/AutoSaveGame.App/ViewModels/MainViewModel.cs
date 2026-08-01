@@ -13,6 +13,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IUiDispatcher uiDispatcher;
     private bool isBusy;
     private string statusMessage = "Đăng nhập để tải danh sách game.";
+    private GameItemViewModel? selectedGame;
 
     public MainViewModel(
         IApplicationRuntime runtime,
@@ -42,6 +43,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
         DeleteGameCommand = new AsyncCommand<GameItemViewModel>(
             DeleteGameAsync,
             _ => !IsBusy);
+        SelectGameCommand = new AsyncCommand<GameItemViewModel>(
+            game =>
+            {
+                SelectedGame = game;
+                return Task.CompletedTask;
+            },
+            game => game is not null);
+        BackToOverviewCommand = new AsyncCommand(
+            () =>
+            {
+                SelectedGame = null;
+                return Task.CompletedTask;
+            });
+        DeleteCloudDataCommand = new AsyncCommand(
+            DeleteCloudDataAsync,
+            () => !IsBusy && SelectedGame is not null && SelectedGame.CanRestore);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -57,6 +74,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public AsyncCommand<GameItemViewModel> BackupNowCommand { get; }
 
     public AsyncCommand<GameItemViewModel> DeleteGameCommand { get; }
+
+    public AsyncCommand<GameItemViewModel> SelectGameCommand { get; }
+
+    public AsyncCommand BackToOverviewCommand { get; }
+
+    public AsyncCommand DeleteCloudDataCommand { get; }
+
+    public GameItemViewModel? SelectedGame
+    {
+        get => selectedGame;
+        private set
+        {
+            if (ReferenceEquals(selectedGame, value))
+            {
+                return;
+            }
+
+            selectedGame = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsOverviewVisible));
+            OnPropertyChanged(nameof(IsGameDetailVisible));
+            DeleteCloudDataCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool IsOverviewVisible => IsSignedIn && SelectedGame is null;
+
+    public bool IsGameDetailVisible => SelectedGame is not null;
 
     public bool IsSignedIn => runtime.IsSignedIn;
 
@@ -215,6 +260,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
             busyMessage: $"Đang xóa {game.DisplayName}...");
     }
 
+    private async Task DeleteCloudDataAsync()
+    {
+        if (SelectedGame is null)
+        {
+            return;
+        }
+
+        var game = SelectedGame;
+        if (!await prompts.ConfirmDeleteCloudDataAsync(game.DisplayName))
+        {
+            return;
+        }
+
+        await RunBusyAsync(
+            async () =>
+            {
+                var result = await runtime.DeleteGameCloudDataAsync(
+                    game.GameId,
+                    CancellationToken.None);
+                if (result.Kind == Core.Models.GameCloudDeleteKind.CleanupIncomplete)
+                {
+                    StatusMessage = "Đã bỏ liên kết Drive, còn file cần dọn lại.";
+                }
+            },
+            "Đã xóa dữ liệu Drive của game.",
+            "Xóa dữ liệu Drive",
+            $"Đang xóa dữ liệu Drive của {game.DisplayName}...");
+    }
+
     private async Task RunBusyAsync(
         Func<Task> action,
         string successMessage,
@@ -275,6 +349,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void RefreshGames()
     {
+        var selectedGameId = SelectedGame?.GameId;
         Games.Clear();
         foreach (var game in runtime.Games.OrderBy(
                      item => item.Config.DisplayName,
@@ -283,10 +358,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Games.Add(new GameItemViewModel(game, uiDispatcher));
         }
 
+        SelectedGame = selectedGameId is null
+            ? null
+            : Games.SingleOrDefault(game => game.GameId == selectedGameId.Value);
         OnPropertyChanged(nameof(IsSignedIn));
         OnPropertyChanged(nameof(HasGames));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(CloudUsageText));
+        OnPropertyChanged(nameof(IsOverviewVisible));
+        OnPropertyChanged(nameof(IsGameDetailVisible));
     }
 
     private void RaiseCommandStates()
@@ -296,6 +376,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         RestoreCommand.RaiseCanExecuteChanged();
         BackupNowCommand.RaiseCanExecuteChanged();
         DeleteGameCommand.RaiseCanExecuteChanged();
+        DeleteCloudDataCommand.RaiseCanExecuteChanged();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

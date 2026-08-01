@@ -42,6 +42,16 @@ public sealed class GameItemViewModelTests
         Assert.True(viewModel.CanRestore);
     }
 
+    [Fact]
+    public void DriveMetadataDisplay_FormatsArchiveFieldsForDetailView()
+    {
+        var viewModel = Create(GameSyncStatus.Watching, hasSnapshot: true);
+
+        Assert.Equal("8 B", viewModel.ArchiveSizeText);
+        Assert.Equal("file", viewModel.ArchiveFileIdDisplay);
+        Assert.StartsWith(new string('a', 12), viewModel.ArchiveSha256Display, StringComparison.Ordinal);
+    }
+
     private static GameItemViewModel Create(
         GameSyncStatus status,
         bool hasSnapshot)

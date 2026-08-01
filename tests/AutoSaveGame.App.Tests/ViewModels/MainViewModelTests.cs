@@ -197,6 +197,59 @@ public sealed class MainViewModelTests
         }
     }
 
+    [Fact]
+    public async Task DeleteCloudDataCommand_DoesNothingWhenConfirmationIsDeclined()
+    {
+        var events = new List<string>();
+        var runtime = new FakeRuntime(events) { RuntimeGames = [CreateRuntimeGame()] };
+        var prompts = new FakePrompts(events) { ConfirmCloudDelete = false };
+        var sut = new MainViewModel(runtime, prompts);
+        await sut.SignInCommand.ExecuteAsync();
+        sut.SelectGameCommand.Execute(sut.Games.Single());
+        events.Clear();
+
+        await sut.DeleteCloudDataCommand.ExecuteAsync();
+
+        Assert.Equal(["confirm-cloud-delete"], events);
+    }
+
+    [Fact]
+    public async Task DeleteCloudDataCommand_DeletesSelectedGameAfterConfirmation()
+    {
+        var events = new List<string>();
+        var runtime = new FakeRuntime(events) { RuntimeGames = [CreateRuntimeGame()] };
+        var prompts = new FakePrompts(events) { ConfirmCloudDelete = true };
+        var sut = new MainViewModel(runtime, prompts);
+        await sut.SignInCommand.ExecuteAsync();
+        sut.SelectGameCommand.Execute(sut.Games.Single());
+        events.Clear();
+
+        await sut.DeleteCloudDataCommand.ExecuteAsync();
+
+        Assert.Equal(["confirm-cloud-delete", "delete-cloud"], events);
+        Assert.Equal("Đã xóa dữ liệu Drive của game.", sut.StatusMessage);
+    }
+
+    [Fact]
+    public async Task SelectGameCommand_OpensDetailAndBackCommandReturnsToOverview()
+    {
+        var runtime = new FakeRuntime([]) { RuntimeGames = [CreateRuntimeGame()] };
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+        await sut.SignInCommand.ExecuteAsync();
+
+        sut.SelectGameCommand.Execute(sut.Games.Single());
+
+        Assert.True(sut.IsGameDetailVisible);
+        Assert.False(sut.IsOverviewVisible);
+        Assert.Equal("Hades", sut.SelectedGame?.DisplayName);
+
+        sut.BackToOverviewCommand.Execute(null);
+
+        Assert.False(sut.IsGameDetailVisible);
+        Assert.True(sut.IsOverviewVisible);
+        Assert.Null(sut.SelectedGame);
+    }
+
     private static RuntimeGame CreateRuntimeGame()
     {
         var config = new GameConfig(
@@ -278,6 +331,18 @@ public sealed class MainViewModelTests
         public Task DeleteGameAsync(Guid gameId, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
+        public Task<GameCloudDeleteResult> DeleteGameCloudDataAsync(
+            Guid gameId,
+            CancellationToken cancellationToken)
+        {
+            events.Add("delete-cloud");
+            return Task.FromResult(new GameCloudDeleteResult(
+                GameCloudDeleteKind.Deleted,
+                null,
+                ["archive-file"],
+                []));
+        }
+
         public Task RestoreAsync(Guid gameId, CancellationToken cancellationToken)
         {
             events.Add("restore");
@@ -308,6 +373,8 @@ public sealed class MainViewModelTests
     {
         public bool ConfirmGameClosed { get; init; }
 
+        public bool ConfirmCloudDelete { get; init; }
+
         public string? ErrorTitle { get; private set; }
 
         public string? ErrorMessage { get; private set; }
@@ -328,6 +395,12 @@ public sealed class MainViewModelTests
 
         public Task<bool> ConfirmDeleteAsync(string displayName) =>
             Task.FromResult(true);
+
+        public Task<bool> ConfirmDeleteCloudDataAsync(string displayName)
+        {
+            events.Add("confirm-cloud-delete");
+            return Task.FromResult(ConfirmCloudDelete);
+        }
 
         public Task<ExitChoice> ConfirmExitAsync() =>
             Task.FromResult(ExitChoice.ExitAnyway);
