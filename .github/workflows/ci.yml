@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore AutoSaveGame.sln
+
+      - name: Test
+        run: dotnet test AutoSaveGame.sln -c Release --no-restore
+
+      - name: Build
+        run: dotnet build AutoSaveGame.sln -c Release --no-restore
+
+      - name: Publish portable app
+        run: >-
+          dotnet publish src/AutoSaveGame.App/AutoSaveGame.App.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          --no-restore
+          -o artifacts/win-x64
+
+      - name: Smoke published executable
+        shell: powershell
+        run: >-
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File scripts/SmokeTest.ps1
+          -Executable artifacts/win-x64/AutoSaveGame.exe

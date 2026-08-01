@@ -33,6 +33,11 @@ Smoke test không dùng Google credentials:
 
 Output portable nằm tại artifacts/win-x64/AutoSaveGame.exe.
 
+GitHub Actions CI chạy test, Release build và smoke test trên chính executable
+đã publish. Smoke test dùng cloud giả lập để kiểm tra backup → xóa local →
+restore và đối chiếu hash; kết quả này không thay thế kiểm chứng đăng nhập OAuth
+và Google Drive thật trước khi phát hành.
+
 ## Giới hạn MVP
 
 - Chỉ giữ một snapshot đã commit cho mỗi game.
