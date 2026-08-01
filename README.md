@@ -1,15 +1,26 @@
 # AutoSaveGame
 
-AutoSaveGame là ứng dụng Windows portable dùng Google Drive để giữ một snapshot save hiện hành cho mỗi game. Ứng dụng không cần quyền administrator, Steam Cloud, Supabase hoặc Google Drive Desktop.
+AutoSaveGame là ứng dụng Windows dùng Google Drive để giữ một snapshot save hiện hành cho mỗi game. Ứng dụng không cần quyền administrator, Steam Cloud, Supabase hoặc Google Drive Desktop.
+
+## Cài đặt
+
+Cách dễ nhất: mở [bản phát hành mới nhất](https://github.com/SeikoP/AutoSaveGame/releases/latest), tải `AutoSaveGame-Setup.exe` và chạy. Ứng dụng được cài cho tài khoản Windows hiện tại tại `%LOCALAPPDATA%\Programs\AutoSaveGame` và xuất hiện trong Start Menu.
+
+Cài nhanh từ PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/SeikoP/AutoSaveGame/main/scripts/Install.ps1 | iex
+```
+
+Script tải đúng asset chính thức, kiểm tra SHA-256 rồi mới cài. Nếu quán net chặn PowerShell hoặc GitHub raw content, hãy dùng trực tiếp file setup ở trang release.
 
 ## Cách sử dụng
 
-1. Cấu hình Google OAuth theo hướng dẫn tại docs/google-oauth-setup.md.
-2. Mở AutoSaveGame.exe và đăng nhập Google.
-3. Thêm game, chọn đúng thư mục save.
-4. Khi sang máy mới, đăng nhập, chọn game và bấm Restore trước khi mở game.
-5. Để ứng dụng chạy ở system tray trong lúc chơi.
-6. Trước khi rời máy, chỉ thoát khi trạng thái cho biết backup cloud đã được xác nhận. Có thể bấm Backup now để đẩy ngay thay đổi đang chờ.
+1. Mở AutoSaveGame và đăng nhập Google. Bản phát hành chính thức đã chứa cấu hình OAuth của ứng dụng; người dùng không phải tự nhập client ID hoặc secret.
+2. Thêm game và chọn đúng thư mục save. App tạo bản backup đầu tiên ngay sau khi thêm.
+3. Khi sang máy mới, đăng nhập, chọn game và bấm Restore trước khi mở game.
+4. Để ứng dụng chạy ở system tray trong lúc chơi.
+5. Trước khi rời máy, chỉ thoát khi trạng thái cho biết backup cloud đã được xác nhận. Có thể bấm Backup now để đẩy ngay thay đổi đang chờ.
 
 ## An toàn trên máy công cộng
 
@@ -32,6 +43,8 @@ Smoke test không dùng Google credentials:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/SmokeTest.ps1 -Executable artifacts/win-x64/AutoSaveGame.exe
 
 Output portable nằm tại artifacts/win-x64/AutoSaveGame.exe.
+
+Developer build không nhúng OAuth credentials. Xem `docs/google-oauth-setup.md` để cấu hình biến môi trường cục bộ; thông tin này không được commit vào repository.
 
 GitHub Actions CI chạy test, Release build và smoke test trên chính executable
 đã publish. Smoke test dùng cloud giả lập để kiểm tra backup → xóa local →
