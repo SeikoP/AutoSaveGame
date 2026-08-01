@@ -31,6 +31,15 @@ public sealed class UserPromptService : IUserPromptService
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question) == MessageBoxResult.Yes);
 
+    public Task<bool> ConfirmDeleteCloudDataAsync(string displayName) =>
+        Task.FromResult(
+            WpfMessageBox.Show(
+                $"Xóa toàn bộ dữ liệu Google Drive của {displayName}?\n\n" +
+                "File save trên máy không bị xóa. Bản sao lưu trên Drive của game này sẽ bị xóa khỏi appDataFolder ẩn và không thể khôi phục từ Drive cho tới khi sao lưu lại.",
+                "Xóa dữ liệu Drive của game",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) == MessageBoxResult.Yes);
+
     public Task<ExitChoice> ConfirmExitAsync()
     {
         var result = WpfMessageBox.Show(

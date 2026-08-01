@@ -15,6 +15,8 @@ public interface IUserPromptService
 
     Task<bool> ConfirmDeleteAsync(string displayName);
 
+    Task<bool> ConfirmDeleteCloudDataAsync(string displayName);
+
     Task<ExitChoice> ConfirmExitAsync();
 
     void ShowError(string title, string message, string? correlationId);

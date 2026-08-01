@@ -1,3 +1,5 @@
+using AutoSaveGame.Core.Models;
+
 namespace AutoSaveGame.App.Services;
 
 internal sealed class UnavailableApplicationRuntime(string message)
@@ -35,6 +37,11 @@ internal sealed class UnavailableApplicationRuntime(string message)
 
     public Task BackupNowAsync(Guid gameId, CancellationToken cancellationToken) =>
         Task.FromException(new InvalidOperationException(message));
+
+    public Task<GameCloudDeleteResult> DeleteGameCloudDataAsync(
+        Guid gameId,
+        CancellationToken cancellationToken) =>
+        Task.FromException<GameCloudDeleteResult>(new InvalidOperationException(message));
 
     public Task SetWatchingAsync(
         Guid gameId,
