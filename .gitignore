@@ -2,6 +2,8 @@ bin/
 obj/
 artifacts/
 installer/Output/
+.env
+cr/
 .vs/
 .worktrees/
 *.user
