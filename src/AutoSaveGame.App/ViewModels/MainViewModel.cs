@@ -23,6 +23,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         this.diagnosticLog = diagnosticLog ?? new SessionDiagnosticLog();
         runtime.GamesChanged += (_, _) => RefreshGames();
         SignInCommand = new AsyncCommand(SignInAsync, () => !IsBusy && !IsSignedIn);
+        SignOutCommand = new AsyncCommand(SignOutAsync, () => !IsBusy && IsSignedIn);
         RestoreCommand = new AsyncCommand<GameItemViewModel>(
             RestoreAsync,
             game => !IsBusy && game.Status is not (
@@ -45,6 +46,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public AsyncCommand SignInCommand { get; }
 
+    public AsyncCommand SignOutCommand { get; }
+
     public AsyncCommand<GameItemViewModel> RestoreCommand { get; }
 
     public AsyncCommand<GameItemViewModel> BackupNowCommand { get; }
@@ -52,6 +55,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public AsyncCommand<GameItemViewModel> DeleteGameCommand { get; }
 
     public bool IsSignedIn => runtime.IsSignedIn;
+
+    public bool HasGames => Games.Count > 0;
+
+    public bool IsEmpty => !HasGames;
 
     public bool IsBusy
     {
@@ -138,6 +145,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsSignedIn));
     }
 
+    private async Task SignOutAsync()
+    {
+        await RunBusyAsync(
+            () => runtime.SignOutAsync(CancellationToken.None),
+            "Signed out.",
+            "Google sign-out");
+        OnPropertyChanged(nameof(IsSignedIn));
+    }
+
     private async Task RestoreAsync(GameItemViewModel game)
     {
         if (!await prompts.ConfirmGameClosedAsync(game.DisplayName))
@@ -203,11 +219,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(IsSignedIn));
+        OnPropertyChanged(nameof(HasGames));
+        OnPropertyChanged(nameof(IsEmpty));
     }
 
     private void RaiseCommandStates()
     {
         SignInCommand.RaiseCanExecuteChanged();
+        SignOutCommand.RaiseCanExecuteChanged();
         RestoreCommand.RaiseCanExecuteChanged();
         BackupNowCommand.RaiseCanExecuteChanged();
         DeleteGameCommand.RaiseCanExecuteChanged();

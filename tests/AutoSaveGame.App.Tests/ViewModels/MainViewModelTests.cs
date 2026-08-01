@@ -23,6 +23,38 @@ public sealed class MainViewModelTests
         Assert.Equal(["warning", "signin"], events);
         Assert.True(sut.IsSignedIn);
         Assert.Equal("Hades", sut.Games.Single().DisplayName);
+        Assert.True(sut.HasGames);
+        Assert.False(sut.IsEmpty);
+    }
+
+    [Fact]
+    public async Task SignInCommand_ShowsEmptyStateWhenCloudCatalogHasNoGames()
+    {
+        var runtime = new FakeRuntime([]);
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+
+        await sut.SignInCommand.ExecuteAsync();
+
+        Assert.True(sut.IsSignedIn);
+        Assert.True(sut.IsEmpty);
+        Assert.False(sut.HasGames);
+    }
+
+    [Fact]
+    public async Task SignOutCommand_ClearsSignedInDashboard()
+    {
+        var runtime = new FakeRuntime([])
+        {
+            RuntimeGames = [CreateRuntimeGame()],
+        };
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+        await sut.SignInCommand.ExecuteAsync();
+
+        await sut.SignOutCommand.ExecuteAsync();
+
+        Assert.False(sut.IsSignedIn);
+        Assert.True(sut.IsEmpty);
+        Assert.Empty(sut.Games);
     }
 
     [Fact]
@@ -126,7 +158,7 @@ public sealed class MainViewModelTests
 
         public bool IsSignedIn { get; private set; }
 
-        public IReadOnlyList<RuntimeGame> RuntimeGames { get; init; } = [];
+        public IReadOnlyList<RuntimeGame> RuntimeGames { get; set; } = [];
 
         public IReadOnlyList<RuntimeGame> Games => RuntimeGames;
 
@@ -172,8 +204,13 @@ public sealed class MainViewModelTests
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task SignOutAsync(CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public Task SignOutAsync(CancellationToken cancellationToken)
+        {
+            IsSignedIn = false;
+            RuntimeGames = [];
+            GamesChanged?.Invoke(this, EventArgs.Empty);
+            return Task.CompletedTask;
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

@@ -28,10 +28,26 @@
                            Text="Keep one verified game-save snapshot in your Google Drive."
                            Foreground="#6B7280" />
             </StackPanel>
-            <Button HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Content="Exit"
-                    Click="Exit_Click" />
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Orientation="Horizontal">
+                <Button Margin="0,0,8,0"
+                        Content="Sign out"
+                        Command="{Binding SignOutCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSignedIn}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Exit"
+                        Click="Exit_Click" />
+            </StackPanel>
         </Grid>
 
         <Border Grid.Row="1"
@@ -98,6 +114,16 @@
                              BorderThickness="0"
                              Background="Transparent"
                              ItemsSource="{Binding Games}">
+                        <ListBox.Style>
+                            <Style TargetType="ListBox">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.Style>
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -125,7 +151,7 @@
                                                         Padding="7,2"
                                                         Background="#EFF6FF"
                                                         CornerRadius="8">
-                                                    <TextBlock Text="{Binding Status}"
+                                                    <TextBlock Text="{Binding StatusText}"
                                                                Foreground="#1D4ED8"
                                                                FontSize="12" />
                                                 </Border>
@@ -149,6 +175,7 @@
                                                       Click="Watch_Click" />
                                             <Button Margin="0,0,7,0"
                                                     Content="Restore"
+                                                    IsEnabled="{Binding CanRestore}"
                                                     Command="{Binding DataContext.RestoreCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}" />
                                             <Button Margin="0,0,7,0"
@@ -156,8 +183,18 @@
                                                     Command="{Binding DataContext.BackupNowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}" />
                                             <Button Margin="0,0,7,0"
-                                                    Content="Edit"
-                                                    Click="EditGame_Click" />
+                                                    Click="EditGame_Click">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Content" Value="Edit" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding NeedsSaveFolder}" Value="True">
+                                                                <Setter Property="Content" Value="Choose folder" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                             <Button Content="Remove"
                                                     Command="{Binding DataContext.DeleteGameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}" />
@@ -167,15 +204,50 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    <StackPanel Grid.Row="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                MaxWidth="420">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="No games are protected yet"
+                                   FontSize="21"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center" />
+                        <TextBlock Margin="0,8,0,18"
+                                   Text="Choose a game's save folder. AutoSaveGame will create the first verified backup immediately."
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Foreground="#6B7280" />
+                        <Button Padding="18,10"
+                                HorizontalAlignment="Center"
+                                Content="Add a game"
+                                Click="AddGame_Click" />
+                    </StackPanel>
                 </Grid>
             </Grid>
         </Border>
 
         <Grid Grid.Row="2">
-            <TextBlock Text="{Binding StatusMessage}"
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Margin="0,0,18,0"
+                       Text="{Binding StatusMessage}"
                        Foreground="#4B5563"
-                       VerticalAlignment="Center" />
-            <TextBlock HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1"
+                       HorizontalAlignment="Right"
                        Text="Only a confirmed cloud backup is safe."
                        Foreground="#9CA3AF"
                        VerticalAlignment="Center" />

@@ -29,6 +29,23 @@ public sealed class GameItemViewModel : INotifyPropertyChanged
 
     public GameSyncStatus Status => runtimeGame.StateMachine.Status;
 
+    public string StatusText => Status switch
+    {
+        GameSyncStatus.NotConfigured => "Choose save folder",
+        GameSyncStatus.Watching when runtimeGame.Config.Snapshot is null =>
+            "Waiting for first backup",
+        GameSyncStatus.Watching => "Safe in Google Drive",
+        GameSyncStatus.Dirty => "Changes detected",
+        GameSyncStatus.BackingUp or GameSyncStatus.Pending => "Backing up",
+        GameSyncStatus.Restoring => "Restoring",
+        GameSyncStatus.Conflict or GameSyncStatus.Error => "Action required",
+        _ => Status.ToString(),
+    };
+
+    public bool CanRestore => runtimeGame.Config.Snapshot is not null;
+
+    public bool NeedsSaveFolder => Status == GameSyncStatus.NotConfigured;
+
     public DateTimeOffset? LastBackupUtc =>
         runtimeGame.Config.Snapshot?.LastBackupUtc;
 
@@ -39,6 +56,8 @@ public sealed class GameItemViewModel : INotifyPropertyChanged
     private void OnStatusChanged(object? sender, GameSyncStatus status)
     {
         OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(NeedsSaveFolder));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
