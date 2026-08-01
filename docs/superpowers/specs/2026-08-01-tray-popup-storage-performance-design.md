@@ -20,6 +20,14 @@ Because no stage timing is currently recorded, the first implementation step mus
 
 ## Product shape
 
+### Language and locale
+
+- Vietnamese (`vi-VN`) is the only user-facing language in this release.
+- Popup copy, tray menu, dialogs, status/progress labels, validation, errors, confirmations, installer text, and help text must be Vietnamese.
+- Dates, times, byte sizes, and relative-time labels use Vietnamese formatting and natural wording.
+- Technical identifiers, local diagnostic logs, stack traces, and original Google API error details may remain English; they must not be shown as the primary user-facing message.
+- Google-owned OAuth browser pages may follow the Google account/browser locale and are outside the application's rendering control.
+
 ### Window behavior
 
 - A borderless fixed-size `360 x 480` WPF popup opens from the tray icon and anchors to the notification area.
@@ -122,6 +130,7 @@ Generate a simple cloud plus checkpoint/save-slot mark with no text, transparent
 - Unit/contract tests cover progress events, SHA-256 response mapping, checksum fallback, mismatch rejection, lightweight second preflight, transient retry, cancellation, and cleanup semantics.
 - Fake-time tests prove watcher debounce, five-minute idle reconciliation, event coalescing, and no work while signed out/disabled.
 - UI tests/view-model tests cover signed-out, idle, active progress, success, conflict, retryable failure, storage details, and popup hide/show states.
+- UI tests assert that every reachable application-owned user-facing state uses Vietnamese copy and `vi-VN` formatting; no legacy English primary label remains.
 - Existing build, full test suite, packaging, and smoke test remain green.
 - A local benchmark report shows per-stage timings before and after on the same fixture. The optimized path must make fewer Drive round trips and transfer no extra full ZIP copies.
 - On a 60-second signed-in idle observation with no file changes, average process CPU is below 1% on the test machine and handle/thread counts do not trend upward.
