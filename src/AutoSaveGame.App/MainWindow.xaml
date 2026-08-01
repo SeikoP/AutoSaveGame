@@ -28,6 +28,74 @@
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="FontSize" Value="12" />
         </Style>
+
+        <Style x:Key="SignInCircleButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="64" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="32">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.85" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SignInRing" TargetType="Path">
+            <Setter Property="Width" Value="96" />
+            <Setter Property="Height" Value="96" />
+            <Setter Property="Stroke" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="StrokeThickness" Value="4" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <RotateTransform CenterX="48" CenterY="48" />
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSigningIn}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="(Path.RenderTransform).(RotateTransform.Angle)"
+                                                 From="0"
+                                                 To="360"
+                                                 Duration="0:0:1.2"
+                                                 RepeatBehavior="Forever" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <StopStoryboard />
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasSignInError}" Value="True">
+                    <Setter Property="Stroke" Value="{StaticResource DangerBrush}" />
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Border BorderBrush="{StaticResource BorderBrush}"
@@ -123,11 +191,33 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap"
                                LineHeight="20" />
-                    <Button Content="Đăng nhập bằng Google"
-                            Style="{StaticResource PrimaryButton}"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding SignInCommand}"
-                            AutomationProperties.Name="Đăng nhập bằng Google" />
+                    <StackPanel HorizontalAlignment="Center">
+                        <Grid Width="96" Height="96">
+                            <Path Style="{StaticResource SignInRing}"
+                                  Data="M 48,4 A 44,44 0 1 1 9.9,70" />
+                            <Button Style="{StaticResource SignInCircleButton}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding SignInCommand}"
+                                    AutomationProperties.Name="Đăng nhập bằng Google">
+                                <TextBlock Text="G"
+                                           FontSize="28"
+                                           FontWeight="Bold"
+                                           Foreground="White" />
+                            </Button>
+                        </Grid>
+                        <TextBlock HorizontalAlignment="Center"
+                                   Margin="0,10,0,0"
+                                   Text="Đăng nhập bằng Google"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextStrongBrush}" />
+                        <TextBlock HorizontalAlignment="Center"
+                                   Text="{Binding SignInHint}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
                     <Border Margin="0,18,0,0" Padding="12"
                             Background="{StaticResource SoftBlueBrush}"
                             CornerRadius="10">

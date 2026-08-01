@@ -7,6 +7,13 @@ public interface IApplicationRuntime : IAsyncDisposable
 {
     bool IsSignedIn { get; }
 
+    /// <summary>Raised with the browser authorization URL once it is ready.</summary>
+    event EventHandler<string>? AuthUrlGenerated
+    {
+        add { }
+        remove { }
+    }
+
     IReadOnlyList<RuntimeGame> Games { get; }
 
     bool HasUnsafeChanges { get; }

@@ -72,13 +72,119 @@ public sealed class MainViewModelTests
 
         Assert.True(sut.IsBusy);
         Assert.True(sut.IsProgressVisible);
-        Assert.Equal("Đang kết nối Google Drive...", sut.StatusMessage);
+        Assert.True(sut.IsSigningIn);
+        Assert.Equal("Đang mở trình duyệt để đăng nhập...", sut.StatusMessage);
+        Assert.Contains("hủy", sut.SignInHint);
 
         releaseSignIn.SetResult();
         await signIn;
 
+        Assert.False(sut.IsSigningIn);
         Assert.False(sut.IsProgressVisible);
         Assert.Equal("Đã tải danh sách game.", sut.StatusMessage);
+    }
+
+    [Fact]
+    public async Task SignInCommand_SecondClickWhileSigningInCancelsAttempt()
+    {
+        var releaseSignIn = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new FakeRuntime([]) { SignInBlocker = releaseSignIn.Task };
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+
+        var attempt = sut.SignInCommand.ExecuteAsync();
+
+        await sut.SignInCommand.ExecuteAsync();
+        await attempt;
+
+        Assert.False(sut.IsSigningIn);
+        Assert.False(sut.IsSignedIn);
+        Assert.Equal("Đã hủy đăng nhập.", sut.StatusMessage);
+        Assert.False(sut.HasSignInError);
+        Assert.DoesNotContain("thử lại", sut.SignInHint);
+    }
+
+    [Fact]
+    public async Task SignInCommand_ClickAfterCancelStartsFreshLogin()
+    {
+        var releaseSignIn = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new FakeRuntime([]) { SignInBlocker = releaseSignIn.Task };
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+
+        var canceledAttempt = sut.SignInCommand.ExecuteAsync();
+        await sut.SignInCommand.ExecuteAsync();
+        await canceledAttempt;
+        releaseSignIn.SetResult();
+
+        var retry = sut.SignInCommand.ExecuteAsync();
+        await retry;
+
+        Assert.True(sut.IsSignedIn);
+        Assert.False(sut.IsSigningIn);
+        Assert.False(sut.HasSignInError);
+    }
+
+    [Fact]
+    public async Task SignInCommand_AfterFailureNextClickClearsErrorAndRetries()
+    {
+        var events = new List<string>();
+        var runtime = new FakeRuntime(events)
+        {
+            SignInError = new Infrastructure.GoogleDrive.UserAuthenticationException(
+                Infrastructure.GoogleDrive.AuthenticationFailureKind.Network,
+                "raw network details"),
+        };
+        var prompts = new FakePrompts(events);
+        var sut = new MainViewModel(runtime, prompts);
+
+        await sut.SignInCommand.ExecuteAsync();
+
+        Assert.True(sut.HasSignInError);
+        Assert.False(sut.IsSigningIn);
+        Assert.Contains("thử lại", sut.SignInHint);
+        Assert.NotNull(prompts.ErrorMessage);
+
+        runtime.SignInError = null;
+        await sut.SignInCommand.ExecuteAsync();
+
+        Assert.True(sut.IsSignedIn);
+        Assert.False(sut.HasSignInError);
+        Assert.False(sut.IsSigningIn);
+    }
+
+    [Fact]
+    public async Task AuthUrlGenerated_CopiesUrlToClipboardAndShowsHint()
+    {
+        var runtime = new FakeRuntime([]);
+        var clipboard = new FakeClipboard();
+        var sut = new MainViewModel(
+            runtime,
+            new FakePrompts([]),
+            clipboard: clipboard);
+
+        runtime.EmitAuthUrl("https://accounts.google.com/o/oauth2/v2/auth?...");
+
+        Assert.Equal("https://accounts.google.com/o/oauth2/v2/auth?...", clipboard.Text);
+        Assert.Contains("Đã sao chép", sut.StatusMessage);
+    }
+
+    [Fact]
+    public async Task AuthUrlGenerated_FromBackgroundThread_IsMarshaledToUiDispatcher()
+    {
+        var dispatcher = new RecordingUiDispatcher();
+        var clipboard = new FakeClipboard();
+        var runtime = new FakeRuntime([]);
+        var sut = new MainViewModel(
+            runtime,
+            new FakePrompts([]),
+            uiDispatcher: dispatcher,
+            clipboard: clipboard);
+
+        runtime.EmitAuthUrl("https://accounts.google.com/o/oauth2/v2/auth?...");
+
+        Assert.True(dispatcher.PostCount > 0);
+        Assert.Equal("https://accounts.google.com/o/oauth2/v2/auth?...", clipboard.Text);
     }
 
     [Fact]
@@ -271,7 +377,7 @@ public sealed class MainViewModelTests
 
     private sealed class FakeRuntime(List<string> events) : IApplicationRuntime
     {
-        public Exception? SignInError { get; init; }
+        public Exception? SignInError { get; set; }
 
         public Task? SignInBlocker { get; init; }
 
@@ -291,11 +397,15 @@ public sealed class MainViewModelTests
 
         public event EventHandler? OperationChanged;
 
+        public event EventHandler<string>? AuthUrlGenerated;
+
         public void EmitOperation(OperationProgress progress)
         {
             CurrentOperation = progress;
             OperationChanged?.Invoke(this, EventArgs.Empty);
         }
+
+        public void EmitAuthUrl(string url) => AuthUrlGenerated?.Invoke(this, url);
 
         public async Task SignInAsync(CancellationToken cancellationToken)
         {
@@ -307,7 +417,7 @@ public sealed class MainViewModelTests
 
             if (SignInBlocker is not null)
             {
-                await SignInBlocker;
+                await SignInBlocker.WaitAsync(cancellationToken);
             }
 
             IsSignedIn = true;
@@ -424,5 +534,12 @@ public sealed class MainViewModelTests
             PostCount++;
             action();
         }
+    }
+
+    private sealed class FakeClipboard : IClipboard
+    {
+        public string? Text { get; private set; }
+
+        public void SetText(string text) => Text = text;
     }
 }

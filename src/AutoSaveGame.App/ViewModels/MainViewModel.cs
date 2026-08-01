@@ -11,23 +11,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IUserPromptService prompts;
     private readonly SessionDiagnosticLog diagnosticLog;
     private readonly IUiDispatcher uiDispatcher;
+    private readonly IClipboard clipboard;
     private bool isBusy;
     private string statusMessage = "Đăng nhập để tải danh sách game.";
     private GameItemViewModel? selectedGame;
+    private CancellationTokenSource? signInCts;
+    private bool hasSignInError;
 
     public MainViewModel(
         IApplicationRuntime runtime,
         IUserPromptService prompts,
         SessionDiagnosticLog? diagnosticLog = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        IClipboard? clipboard = null)
     {
         this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         this.prompts = prompts ?? throw new ArgumentNullException(nameof(prompts));
         this.diagnosticLog = diagnosticLog ?? new SessionDiagnosticLog();
         this.uiDispatcher = uiDispatcher ?? new ImmediateUiDispatcher();
+        this.clipboard = clipboard ?? new WindowsClipboard();
         runtime.GamesChanged += OnGamesChanged;
         runtime.OperationChanged += OnOperationChanged;
-        SignInCommand = new AsyncCommand(SignInAsync, () => !IsBusy && !IsSignedIn);
+        runtime.AuthUrlGenerated += OnAuthUrlGenerated;
+        SignInCommand = new ReentrantAsyncCommand(SignInAsync, () => !IsSignedIn);
         SignOutCommand = new AsyncCommand(SignOutAsync, () => !IsBusy && IsSignedIn);
         RestoreCommand = new AsyncCommand<GameItemViewModel>(
             RestoreAsync,
@@ -65,7 +71,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<GameItemViewModel> Games { get; } = [];
 
-    public AsyncCommand SignInCommand { get; }
+    public ReentrantAsyncCommand SignInCommand { get; }
 
     public AsyncCommand SignOutCommand { get; }
 
@@ -104,6 +110,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsGameDetailVisible => SelectedGame is not null;
 
     public bool IsSignedIn => runtime.IsSignedIn;
+
+    public bool IsSigningIn => signInCts is not null;
+
+    public bool HasSignInError
+    {
+        get => hasSignInError;
+        private set
+        {
+            if (hasSignInError == value)
+            {
+                return;
+            }
+
+            hasSignInError = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SignInHint));
+        }
+    }
+
+    public string SignInHint => IsSigningIn
+        ? "Đang chờ xác thực trong trình duyệt. Bấm lần nữa để hủy."
+        : HasSignInError
+            ? "Đăng nhập thất bại. Bấm để thử lại."
+            : "Liên kết đăng nhập sẽ được sao chép vào bảng tạm.";
 
     public bool HasGames => Games.Count > 0;
 
@@ -209,13 +239,66 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task SignInAsync()
     {
+        if (signInCts is not null)
+        {
+            signInCts.Cancel();
+            return;
+        }
+
+        if (HasSignInError)
+        {
+            HasSignInError = false;
+            StatusMessage = "Đăng nhập để tải danh sách game.";
+        }
+
         await prompts.ShowPublicComputerWarningAsync();
-        await RunBusyAsync(
-            () => runtime.SignInAsync(CancellationToken.None),
-            "Đã tải danh sách game.",
-            "Đăng nhập Google",
-            "Đang kết nối Google Drive...");
-        OnPropertyChanged(nameof(IsSignedIn));
+
+        signInCts = new CancellationTokenSource();
+        OnPropertyChanged(nameof(IsSigningIn));
+        OnPropertyChanged(nameof(SignInHint));
+        var canceled = false;
+        try
+        {
+            await RunBusyAsync(
+                () => runtime.SignInAsync(signInCts.Token),
+                "Đã tải danh sách game.",
+                "Đăng nhập Google",
+                "Đang mở trình duyệt để đăng nhập...");
+            OnPropertyChanged(nameof(IsSignedIn));
+        }
+        catch (OperationCanceledException)
+        {
+            canceled = true;
+            StatusMessage = "Đã hủy đăng nhập.";
+        }
+        finally
+        {
+            signInCts.Dispose();
+            signInCts = null;
+            OnPropertyChanged(nameof(IsSigningIn));
+            OnPropertyChanged(nameof(SignInHint));
+        }
+
+        HasSignInError = !canceled && !IsSignedIn;
+    }
+
+    private void OnAuthUrlGenerated(object? sender, string url)
+    {
+        void Copy()
+        {
+            clipboard.SetText(url);
+            StatusMessage =
+                "Đã sao chép liên kết đăng nhập. Nếu trình duyệt chưa mở, hãy dán vào Chrome để đăng nhập.";
+        }
+
+        if (uiDispatcher.CheckAccess())
+        {
+            Copy();
+        }
+        else
+        {
+            uiDispatcher.Post(Copy);
+        }
     }
 
     private async Task SignOutAsync()
@@ -302,6 +385,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await action();
             StatusMessage = successMessage;
             RefreshGames();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {

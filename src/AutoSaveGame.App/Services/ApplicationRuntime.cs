@@ -49,9 +49,15 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         this.backupOperation = backupOperation
             ?? throw new ArgumentNullException(nameof(backupOperation));
         this.operationMonitor = operationMonitor ?? new OperationMonitor();
+        session.AuthUrlGenerated += OnSessionAuthUrlGenerated;
     }
 
     public bool IsSignedIn => session.IsSignedIn;
+
+    public event EventHandler<string>? AuthUrlGenerated;
+
+    private void OnSessionAuthUrlGenerated(object? sender, string url) =>
+        AuthUrlGenerated?.Invoke(this, url);
 
     public IReadOnlyList<RuntimeGame> Games => games;
 
@@ -422,6 +428,7 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         }
 
         disposed = true;
+        session.AuthUrlGenerated -= OnSessionAuthUrlGenerated;
         await ClearRuntimeGamesAsync().ConfigureAwait(false);
         await watcher.DisposeAsync().ConfigureAwait(false);
         if (scheduler is IAsyncDisposable asyncScheduler)

@@ -19,6 +19,8 @@ public sealed class GoogleUserSession : IUserSession, IDisposable
     public static IReadOnlyList<string> RequiredScopes { get; } =
         Array.AsReadOnly([DriveService.Scope.DriveAppdata]);
 
+    public event EventHandler<string>? AuthUrlGenerated;
+
     public GoogleUserSession(
         GoogleOAuthOptions options,
         MemoryDataStore? dataStore = null)
@@ -60,7 +62,8 @@ public sealed class GoogleUserSession : IUserSession, IDisposable
                 });
             var app = new AuthorizationCodeInstalledApp(
                 flow,
-                new LocalServerCodeReceiver());
+                new NotifyingCodeReceiver(
+                    url => AuthUrlGenerated?.Invoke(this, url)));
             credential = await app.AuthorizeAsync(
                 SessionUserKey,
                 timeout.Token).ConfigureAwait(false);

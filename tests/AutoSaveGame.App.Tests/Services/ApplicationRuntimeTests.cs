@@ -100,6 +100,28 @@ public sealed class ApplicationRuntimeTests
     }
 
     [Fact]
+    public async Task SignInAsync_ForwardsAuthUrlGeneratedFromSession()
+    {
+        var session = new FakeSession();
+        var runtime = new ApplicationRuntime(
+            session,
+            new FakeCatalogRepository(Catalog.Empty),
+            new RecordingCloudStore([]),
+            new RecordingRestoreService([]),
+            new RecordingScheduler(),
+            new RecordingWatcher([]),
+            new PathTemplateService(new Dictionary<string, string>()),
+            new RecordingRestoreArchiveStore([]),
+            (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)));
+        var urls = new List<string>();
+        runtime.AuthUrlGenerated += (_, url) => urls.Add(url);
+
+        session.EmitAuthUrl("https://accounts.google.com/o/oauth2/v2/auth?...");
+
+        Assert.Equal(["https://accounts.google.com/o/oauth2/v2/auth?..."], urls);
+    }
+
+    [Fact]
     public async Task DeleteGameCloudDataAsync_CallsCatalogDeletionAndRefreshesGames()
     {
         var game = new GameConfig(
@@ -147,6 +169,10 @@ public sealed class ApplicationRuntimeTests
     private sealed class FakeSession : IUserSession
     {
         public bool IsSignedIn { get; private set; }
+
+        public event EventHandler<string>? AuthUrlGenerated;
+
+        public void EmitAuthUrl(string url) => AuthUrlGenerated?.Invoke(this, url);
 
         public Task SignInAsync(CancellationToken cancellationToken)
         {
