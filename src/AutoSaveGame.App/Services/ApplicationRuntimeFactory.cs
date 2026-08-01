@@ -4,6 +4,7 @@ using AutoSaveGame.Infrastructure.GoogleDrive;
 using AutoSaveGame.Infrastructure.Restore;
 using AutoSaveGame.Infrastructure.Snapshots;
 using AutoSaveGame.Infrastructure.Watching;
+using System.Reflection;
 
 namespace AutoSaveGame.App.Services;
 
@@ -27,8 +28,10 @@ internal static class ApplicationRuntimeFactory
         GoogleOAuthOptions options;
         try
         {
-            options = GoogleOAuthOptions.FromEnvironment(
-                Environment.GetEnvironmentVariable);
+            options = GoogleOAuthOptions.Resolve(
+                Environment.GetEnvironmentVariable,
+                () => Assembly.GetExecutingAssembly().GetManifestResourceStream(
+                    "AutoSaveGame.GoogleOAuthClient.json"));
         }
         catch (InvalidOperationException exception)
         {
@@ -80,4 +83,3 @@ internal static class ApplicationRuntimeFactory
         return runtime;
     }
 }
-

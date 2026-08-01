@@ -5,6 +5,11 @@
     <ProjectReference Include="..\AutoSaveGame.Infrastructure\AutoSaveGame.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(AutoSaveGameOAuthConfig)' != ''">
+    <EmbeddedResource Include="$(AutoSaveGameOAuthConfig)"
+                      LogicalName="AutoSaveGame.GoogleOAuthClient.json" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <AssemblyName>AutoSaveGame</AssemblyName>
