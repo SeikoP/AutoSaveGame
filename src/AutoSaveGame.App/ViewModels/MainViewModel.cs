@@ -12,7 +12,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly SessionDiagnosticLog diagnosticLog;
     private readonly IUiDispatcher uiDispatcher;
     private bool isBusy;
-    private string statusMessage = "Sign in to load your save games.";
+    private string statusMessage = "Đăng nhập để tải danh sách game.";
 
     public MainViewModel(
         IApplicationRuntime runtime,
@@ -25,6 +25,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         this.diagnosticLog = diagnosticLog ?? new SessionDiagnosticLog();
         this.uiDispatcher = uiDispatcher ?? new ImmediateUiDispatcher();
         runtime.GamesChanged += OnGamesChanged;
+        runtime.OperationChanged += OnOperationChanged;
         SignInCommand = new AsyncCommand(SignInAsync, () => !IsBusy && !IsSignedIn);
         SignOutCommand = new AsyncCommand(SignOutAsync, () => !IsBusy && IsSignedIn);
         RestoreCommand = new AsyncCommand<GameItemViewModel>(
@@ -63,6 +64,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public bool IsEmpty => !HasGames;
 
+    public string CloudUsageText
+    {
+        get
+        {
+            var bytes = Games.Sum(game => game.ArchiveSize);
+            return $"{Games.Count} game · {VietnameseText.FormatBytes(bytes)} snapshot đang hoạt động";
+        }
+    }
+
     public bool IsBusy
     {
         get => isBusy;
@@ -80,7 +90,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool IsProgressVisible => IsBusy;
+    public bool IsProgressVisible =>
+        IsBusy || runtime.CurrentOperation?.Outcome == Core.Models.OperationOutcome.Running;
+
+    public bool IsProgressIndeterminate => runtime.CurrentOperation?.Percent is null;
+
+    public double OperationPercent => runtime.CurrentOperation?.Percent ?? 0;
+
+    public string ProgressStatus => runtime.CurrentOperation is null
+        ? StatusMessage
+        : VietnameseText.OperationStage(runtime.CurrentOperation.Stage);
 
     public string StatusMessage
     {
@@ -103,8 +122,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 displayName,
                 absolutePath,
                 CancellationToken.None),
-            "Game configuration saved.",
-            busyMessage: "Saving game settings...");
+            "Đã lưu cấu hình game.",
+            busyMessage: "Đang lưu cấu hình game...");
     }
 
     public async Task SetWatchingAsync(GameItemViewModel game, bool enabled)
@@ -114,8 +133,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 game.GameId,
                 enabled,
                 CancellationToken.None),
-            enabled ? "Watching enabled." : "Watching disabled.",
-            busyMessage: "Updating monitoring...");
+            enabled ? "Đã bật theo dõi." : "Đã tắt theo dõi.",
+            busyMessage: "Đang cập nhật theo dõi...");
     }
 
     public async Task<bool> RequestExitAsync()
@@ -148,9 +167,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await prompts.ShowPublicComputerWarningAsync();
         await RunBusyAsync(
             () => runtime.SignInAsync(CancellationToken.None),
-            "Games loaded.",
-            "Google sign-in",
-            "Connecting to Google Drive...");
+            "Đã tải danh sách game.",
+            "Đăng nhập Google",
+            "Đang kết nối Google Drive...");
         OnPropertyChanged(nameof(IsSignedIn));
     }
 
@@ -158,9 +177,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         await RunBusyAsync(
             () => runtime.SignOutAsync(CancellationToken.None),
-            "Signed out.",
-            "Google sign-out",
-            "Signing out securely...");
+            "Đã đăng xuất.",
+            "Đăng xuất Google",
+            "Đang đăng xuất an toàn...");
         OnPropertyChanged(nameof(IsSignedIn));
     }
 
@@ -173,15 +192,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         await RunBusyAsync(
             () => runtime.RestoreAsync(game.GameId, CancellationToken.None),
-            "Restore completed.",
-            busyMessage: $"Restoring {game.DisplayName}...");
+            "Khôi phục hoàn tất.",
+            busyMessage: $"Đang khôi phục {game.DisplayName}...");
     }
 
     private Task BackupNowAsync(GameItemViewModel game) =>
         RunBusyAsync(
             () => runtime.BackupNowAsync(game.GameId, CancellationToken.None),
-            "Backup completed.",
-            busyMessage: $"Backing up {game.DisplayName}...");
+            "Sao lưu hoàn tất.",
+            busyMessage: $"Đang sao lưu {game.DisplayName}...");
 
     private async Task DeleteGameAsync(GameItemViewModel game)
     {
@@ -192,15 +211,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         await RunBusyAsync(
             () => runtime.DeleteGameAsync(game.GameId, CancellationToken.None),
-            "Game removed.",
-            busyMessage: $"Removing {game.DisplayName}...");
+            "Đã xóa game.",
+            busyMessage: $"Đang xóa {game.DisplayName}...");
     }
 
     private async Task RunBusyAsync(
         Func<Task> action,
         string successMessage,
-        string operation = "Application operation",
-        string busyMessage = "Working...")
+        string operation = "Thao tác ứng dụng",
+        string busyMessage = "Đang xử lý...")
     {
         StatusMessage = busyMessage;
         IsBusy = true;
@@ -234,6 +253,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         uiDispatcher.Post(RefreshGames);
     }
 
+    private void OnOperationChanged(object? sender, EventArgs e)
+    {
+        void Notify()
+        {
+            OnPropertyChanged(nameof(IsProgressVisible));
+            OnPropertyChanged(nameof(IsProgressIndeterminate));
+            OnPropertyChanged(nameof(OperationPercent));
+            OnPropertyChanged(nameof(ProgressStatus));
+        }
+
+        if (uiDispatcher.CheckAccess())
+        {
+            Notify();
+        }
+        else
+        {
+            uiDispatcher.Post(Notify);
+        }
+    }
+
     private void RefreshGames()
     {
         Games.Clear();
@@ -247,6 +286,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsSignedIn));
         OnPropertyChanged(nameof(HasGames));
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(CloudUsageText));
     }
 
     private void RaiseCommandStates()

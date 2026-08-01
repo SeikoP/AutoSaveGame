@@ -10,25 +10,25 @@ public sealed record UserFacingError(string Title, string Message)
         if (exception is not UserAuthenticationException authentication)
         {
             return new UserFacingError(
-                "AutoSaveGame couldn't complete the operation",
-                "Try again. If the problem continues, copy the diagnostic details.");
+                "AutoSaveGame chưa thể hoàn tất thao tác",
+                "Hãy thử lại. Nếu lỗi tiếp tục, hãy sao chép mã chẩn đoán.");
         }
 
         var message = authentication.Kind switch
         {
             AuthenticationFailureKind.Canceled =>
-                "Google sign-in was canceled. You can try again when ready.",
+                "Đăng nhập Google đã bị hủy. Bạn có thể thử lại khi sẵn sàng.",
             AuthenticationFailureKind.TimedOut =>
-                "Google sign-in did not return to AutoSaveGame in time. Try again.",
+                "Google chưa phản hồi AutoSaveGame kịp thời. Hãy thử lại.",
             AuthenticationFailureKind.Network =>
-                "Cannot reach Google. Check this computer's network and try again.",
+                "Không thể kết nối tới Google. Hãy kiểm tra mạng và thử lại.",
             AuthenticationFailureKind.Rejected =>
-                "Google rejected this sign-in request. Check the account and try again.",
+                "Google đã từ chối yêu cầu đăng nhập. Hãy kiểm tra tài khoản và thử lại.",
             AuthenticationFailureKind.InvalidBuild =>
-                "This is not a usable official build. Download the latest GitHub Release.",
+                "Đây không phải bản phát hành chính thức có thể sử dụng. Hãy tải bản GitHub Release mới nhất.",
             _ =>
-                "The browser could not return sign-in to AutoSaveGame. Try again.",
+                "Trình duyệt không thể trả kết quả đăng nhập về AutoSaveGame. Hãy thử lại.",
         };
-        return new UserFacingError("Google sign-in failed", message);
+        return new UserFacingError("Không thể đăng nhập Google", message);
     }
 }

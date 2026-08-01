@@ -2,7 +2,9 @@ using AutoSaveGame.Core.Models;
 
 namespace AutoSaveGame.App.Services;
 
-public sealed class OperationMonitor
+public sealed class OperationMonitor :
+    IProgress<CloudTransferProgress>,
+    IProgress<OperationProgress>
 {
     private const int HistoryLimit = 20;
     private readonly object sync = new();
@@ -50,5 +52,29 @@ public sealed class OperationMonitor
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    void IProgress<CloudTransferProgress>.Report(CloudTransferProgress value)
+    {
+        OperationProgress? updated;
+        lock (sync)
+        {
+            if (current?.Outcome != OperationOutcome.Running)
+            {
+                return;
+            }
+
+            current = current with
+            {
+                BytesCompleted = value.BytesTransferred,
+                TotalBytes = value.TotalBytes ?? current.TotalBytes,
+            };
+            updated = current;
+        }
+
+        if (updated is not null)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

@@ -8,13 +8,13 @@ namespace AutoSaveGame.App.Tests.ViewModels;
 public sealed class GameItemViewModelTests
 {
     [Theory]
-    [InlineData(GameSyncStatus.NotConfigured, "Choose save folder")]
-    [InlineData(GameSyncStatus.Dirty, "Changes detected")]
-    [InlineData(GameSyncStatus.BackingUp, "Backing up")]
-    [InlineData(GameSyncStatus.Pending, "Backing up")]
-    [InlineData(GameSyncStatus.Restoring, "Restoring")]
-    [InlineData(GameSyncStatus.Conflict, "Action required")]
-    [InlineData(GameSyncStatus.Error, "Action required")]
+    [InlineData(GameSyncStatus.NotConfigured, "Chọn thư mục save")]
+    [InlineData(GameSyncStatus.Dirty, "Đã phát hiện thay đổi")]
+    [InlineData(GameSyncStatus.BackingUp, "Đang sao lưu")]
+    [InlineData(GameSyncStatus.Pending, "Đang chờ sao lưu")]
+    [InlineData(GameSyncStatus.Restoring, "Đang khôi phục")]
+    [InlineData(GameSyncStatus.Conflict, "Cần xử lý xung đột")]
+    [InlineData(GameSyncStatus.Error, "Cần kiểm tra")]
     public void StatusText_UsesUserFacingLanguage(
         GameSyncStatus status,
         string expected)
@@ -29,7 +29,7 @@ public sealed class GameItemViewModelTests
     {
         var viewModel = Create(GameSyncStatus.Watching, hasSnapshot: false);
 
-        Assert.Equal("Waiting for first backup", viewModel.StatusText);
+        Assert.Equal("Đang chờ bản sao lưu đầu tiên", viewModel.StatusText);
         Assert.False(viewModel.CanRestore);
     }
 
@@ -38,7 +38,7 @@ public sealed class GameItemViewModelTests
     {
         var viewModel = Create(GameSyncStatus.Watching, hasSnapshot: true);
 
-        Assert.Equal("Safe in Google Drive", viewModel.StatusText);
+        Assert.Equal("Đã an toàn trên Google Drive", viewModel.StatusText);
         Assert.True(viewModel.CanRestore);
     }
 

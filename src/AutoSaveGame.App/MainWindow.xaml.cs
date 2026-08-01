@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Input;
 using AutoSaveGame.App.Services;
 using AutoSaveGame.App.ViewModels;
 using AutoSaveGame.App.Views;
@@ -27,6 +28,7 @@ public partial class MainWindow : Window
 
     public void RestoreFromTray()
     {
+        AnchorToTray();
         Show();
         WindowState = WindowState.Normal;
         Activate();
@@ -77,6 +79,26 @@ public partial class MainWindow : Window
     private async void Exit_Click(object sender, RoutedEventArgs e) =>
         await ExitAsync();
 
+    private void Hide_Click(object sender, RoutedEventArgs e) => Hide();
+
+    private void Window_Loaded(object sender, RoutedEventArgs e) => AnchorToTray();
+
+    private void Window_Deactivated(object? sender, EventArgs e)
+    {
+        if (!OwnedWindows.Cast<Window>().Any(item => item.IsVisible))
+        {
+            Hide();
+        }
+    }
+
+    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
+    }
+
     private async Task ExitAsync()
     {
         if (!await viewModel.RequestExitAsync())
@@ -107,5 +129,12 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
         trayIcon.HideToTray();
+    }
+
+    private void AnchorToTray()
+    {
+        var workArea = SystemParameters.WorkArea;
+        Left = Math.Max(workArea.Left, workArea.Right - Width - 12);
+        Top = Math.Max(workArea.Top, workArea.Bottom - Height - 12);
     }
 }

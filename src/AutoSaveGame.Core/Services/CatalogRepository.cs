@@ -7,7 +7,8 @@ public sealed class CatalogRepository(
     ICloudObjectStore cloud,
     CatalogCodec codec,
     CatalogSelector selector,
-    TimeProvider timeProvider) : ICatalogRepository
+    TimeProvider timeProvider,
+    IProgress<CloudTransferProgress>? transferProgress = null) : ICatalogRepository
 {
     private readonly ICloudObjectStore cloud = cloud
         ?? throw new ArgumentNullException(nameof(cloud));
@@ -109,6 +110,7 @@ public sealed class CatalogRepository(
                 $"archive-{gameId:N}-{Guid.NewGuid():N}.zip",
                 archive,
                 "application/zip",
+                transferProgress,
                 cancellationToken).ConfigureAwait(false);
             if (uploadedArchive.Size != snapshot.ArchiveSize)
             {
@@ -272,6 +274,7 @@ public sealed class CatalogRepository(
                 $"catalog-{next.Generation:00000000}-{Guid.NewGuid():N}.json",
                 upload,
                 "application/json",
+                transferProgress,
                 cancellationToken).ConfigureAwait(false);
             if (uploaded.Size != bytes.LongLength)
             {

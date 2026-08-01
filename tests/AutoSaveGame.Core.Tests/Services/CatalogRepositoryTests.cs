@@ -165,6 +165,30 @@ public sealed class CatalogRepositoryTests
         Assert.Equal(1, cloud.DownloadCalls);
     }
 
+    [Fact]
+    public async Task SaveCatalogAsync_ForwardsCloudUploadByteProgress()
+    {
+        var cloud = new InMemoryCloudObjectStore { ReturnChecksums = true };
+        var expected = await SeedCatalogAsync(cloud, generation: 1);
+        var reported = new List<CloudTransferProgress>();
+        var progress = new InlineProgress<CloudTransferProgress>(reported.Add);
+        var codec = new CatalogCodec();
+        var sut = new CatalogRepository(
+            cloud,
+            codec,
+            new CatalogSelector(codec),
+            TimeProvider.System,
+            progress);
+
+        await sut.SaveCatalogAsync(
+            expected,
+            expected with { Generation = 2 },
+            TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(reported);
+        Assert.Equal(reported[^1].TotalBytes, reported[^1].BytesTransferred);
+    }
+
     private static CatalogRepository CreateRepository(InMemoryCloudObjectStore cloud) =>
         new(
             cloud,
@@ -223,5 +247,10 @@ public sealed class CatalogRepositoryTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

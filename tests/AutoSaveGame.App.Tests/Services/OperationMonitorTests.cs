@@ -33,6 +33,27 @@ public sealed class OperationMonitorTests
         Assert.Equal(progress, observed);
     }
 
+    [Fact]
+    public void CloudProgress_UpdatesTheRunningOperationWithoutChangingItsStage()
+    {
+        var monitor = new OperationMonitor();
+        var operation = Finished(1) with
+        {
+            Stage = OperationStage.UploadingArchive,
+            BytesCompleted = 0,
+            TotalBytes = null,
+            Outcome = OperationOutcome.Running,
+        };
+        monitor.Report(operation);
+
+        ((IProgress<CloudTransferProgress>)monitor).Report(
+            new CloudTransferProgress(50, 100));
+
+        Assert.Equal(OperationStage.UploadingArchive, monitor.Current?.Stage);
+        Assert.Equal(50, monitor.Current?.BytesCompleted);
+        Assert.Equal(100, monitor.Current?.TotalBytes);
+    }
+
     private static OperationProgress Finished(int index) =>
         new(
             new Guid(index, 0, 0, new byte[8]),

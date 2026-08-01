@@ -30,8 +30,13 @@ UninstallDisplayName=AutoSaveGame
 UninstallDisplayIcon={app}\AutoSaveGame.exe
 VersionInfoVersion={#AppVersion}
 WizardStyle=modern
+SetupIconFile={#SourcePath}\..\src\AutoSaveGame.App\Assets\AutoSaveGame.ico
 CloseApplications=force
 RestartApplications=yes
+
+[Languages]
+; Translation source: LenovoLegionToolkit InnoDependencies/Languages/Vietnamese.isl
+Name: "vietnamese"; MessagesFile: "{#SourcePath}\Languages\Vietnamese.isl"
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -40,4 +45,4 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Name: "{group}\AutoSaveGame"; Filename: "{app}\AutoSaveGame.exe"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\AutoSaveGame.exe"; Description: "Launch AutoSaveGame"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AutoSaveGame.exe"; Description: "Mở AutoSaveGame"; Flags: nowait postinstall skipifsilent

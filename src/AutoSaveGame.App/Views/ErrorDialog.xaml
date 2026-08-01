@@ -27,10 +27,10 @@
             <Button x:Name="CopyButton"
                     Margin="0,0,8,0"
                     Padding="14,8"
-                    Content="Copy diagnostic details"
+                    Content="Sao chép mã chẩn đoán"
                     Click="Copy_Click" />
             <Button Padding="14,8"
-                    Content="Close"
+                    Content="Đóng"
                     IsDefault="True"
                     Click="Close_Click" />
         </StackPanel>

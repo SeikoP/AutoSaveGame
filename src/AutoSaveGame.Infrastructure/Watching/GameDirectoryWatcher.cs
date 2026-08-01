@@ -28,7 +28,7 @@ public sealed class GameDirectoryWatcher : IGameDirectoryWatcher
         this.timeProvider = timeProvider
             ?? throw new ArgumentNullException(nameof(timeProvider));
         this.reconciliationInterval =
-            reconciliationInterval ?? TimeSpan.FromSeconds(30);
+            reconciliationInterval ?? TimeSpan.FromMinutes(5);
         if (this.reconciliationInterval <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(reconciliationInterval));

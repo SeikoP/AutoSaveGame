@@ -18,6 +18,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\AutoSaveGame.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
@@ -26,5 +27,10 @@
     <DebugType>embedded</DebugType>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AutoSaveGame.ico" />
+    <Resource Include="Assets\AutoSaveGame.png" />
+  </ItemGroup>
 
 </Project>

@@ -13,8 +13,8 @@ public sealed class UserFacingErrorTests
                 AuthenticationFailureKind.Network,
                 "raw transport details"));
 
-        Assert.Equal("Google sign-in failed", error.Title);
-        Assert.Contains("Cannot reach Google", error.Message);
+        Assert.Equal("Không thể đăng nhập Google", error.Title);
+        Assert.Contains("Không thể kết nối tới Google", error.Message);
         Assert.DoesNotContain("raw transport details", error.Message);
     }
 
@@ -26,6 +26,6 @@ public sealed class UserFacingErrorTests
                 AuthenticationFailureKind.InvalidBuild,
                 "raw build details"));
 
-        Assert.Contains("official build", error.Message);
+        Assert.Contains("bản phát hành chính thức", error.Message);
     }
 }

@@ -12,17 +12,26 @@ internal sealed class TrayIconService : IDisposable
     public TrayIconService(Window window, Func<Task> exit)
     {
         this.window = window;
+        var executableIcon = Environment.ProcessPath is { } processPath
+            ? Icon.ExtractAssociatedIcon(processPath)
+            : null;
         notifyIcon = new Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = executableIcon ?? SystemIcons.Application,
             Text = "AutoSaveGame",
             Visible = true,
         };
-        notifyIcon.DoubleClick += (_, _) => ShowWindow();
+        notifyIcon.MouseClick += (_, args) =>
+        {
+            if (args.Button == Forms.MouseButtons.Left)
+            {
+                ToggleWindow();
+            }
+        };
 
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Open", null, (_, _) => ShowWindow());
-        menu.Items.Add("Exit", null, async (_, _) => await exit());
+        menu.Items.Add("Mở AutoSaveGame", null, (_, _) => ShowWindow());
+        menu.Items.Add("Thoát", null, async (_, _) => await exit());
         notifyIcon.ContextMenuStrip = menu;
     }
 
@@ -31,14 +40,18 @@ internal sealed class TrayIconService : IDisposable
         window.Hide();
         notifyIcon.ShowBalloonTip(
             1500,
-            "AutoSaveGame is watching",
-            "Keep the app running while you play.",
+            "AutoSaveGame đang theo dõi",
+            "Hãy để ứng dụng chạy trong khi bạn chơi.",
             Forms.ToolTipIcon.Info);
     }
 
     public void Dispose()
     {
         notifyIcon.Visible = false;
+        if (!ReferenceEquals(notifyIcon.Icon, SystemIcons.Application))
+        {
+            notifyIcon.Icon?.Dispose();
+        }
         notifyIcon.Dispose();
     }
 
@@ -48,5 +61,15 @@ internal sealed class TrayIconService : IDisposable
         window.WindowState = WindowState.Normal;
         window.Activate();
     }
-}
 
+    private void ToggleWindow()
+    {
+        if (window.IsVisible)
+        {
+            window.Hide();
+            return;
+        }
+
+        ShowWindow();
+    }
+}

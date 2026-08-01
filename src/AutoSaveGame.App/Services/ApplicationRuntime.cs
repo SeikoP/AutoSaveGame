@@ -17,6 +17,7 @@ public sealed class ApplicationRuntime : IApplicationRuntime
     private readonly IRestoreArchiveStore restoreArchiveStore;
     private readonly Func<GameConfig, Catalog, CancellationToken, Task<BackupResult>>
         backupOperation;
+    private readonly OperationMonitor operationMonitor;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private readonly List<RuntimeGame> games = [];
     private Catalog? currentCatalog;
@@ -31,7 +32,8 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         IGameDirectoryWatcher watcher,
         PathTemplateService pathTemplates,
         IRestoreArchiveStore restoreArchiveStore,
-        Func<GameConfig, Catalog, CancellationToken, Task<BackupResult>> backupOperation)
+        Func<GameConfig, Catalog, CancellationToken, Task<BackupResult>> backupOperation,
+        OperationMonitor? operationMonitor = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.catalogs = catalogs ?? throw new ArgumentNullException(nameof(catalogs));
@@ -46,6 +48,7 @@ public sealed class ApplicationRuntime : IApplicationRuntime
             ?? throw new ArgumentNullException(nameof(restoreArchiveStore));
         this.backupOperation = backupOperation
             ?? throw new ArgumentNullException(nameof(backupOperation));
+        this.operationMonitor = operationMonitor ?? new OperationMonitor();
     }
 
     public bool IsSignedIn => session.IsSignedIn;
@@ -59,7 +62,15 @@ public sealed class ApplicationRuntime : IApplicationRuntime
             or GameSyncStatus.Conflict
             or GameSyncStatus.Error);
 
+    public OperationProgress? CurrentOperation => operationMonitor.Current;
+
     public event EventHandler? GamesChanged;
+
+    public event EventHandler? OperationChanged
+    {
+        add => operationMonitor.Changed += value;
+        remove => operationMonitor.Changed -= value;
+    }
 
     public async Task SignInAsync(CancellationToken cancellationToken)
     {
@@ -170,6 +181,15 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         Guid gameId,
         CancellationToken cancellationToken)
     {
+        var operationId = Guid.NewGuid();
+        var started = TimeProvider.System.GetTimestamp();
+        ReportOperation(
+            operationId,
+            gameId,
+            OperationKind.Restore,
+            OperationStage.CheckingCloud,
+            OperationOutcome.Running,
+            started);
         await operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -190,12 +210,30 @@ public sealed class ApplicationRuntime : IApplicationRuntime
                              cancellationToken).ConfigureAwait(false))
             {
                 var archive = archiveHandle.Stream;
+                ReportOperation(
+                    operationId,
+                    gameId,
+                    OperationKind.Restore,
+                    OperationStage.DownloadingArchive,
+                    OperationOutcome.Running,
+                    started,
+                    totalBytes: snapshot.ArchiveSize);
                 await cloud.DownloadAsync(
                     snapshot.ArchiveFileId,
                     archive,
+                    operationMonitor,
                     cancellationToken).ConfigureAwait(false);
                 await archive.FlushAsync(cancellationToken).ConfigureAwait(false);
                 archive.Position = 0;
+                ReportOperation(
+                    operationId,
+                    gameId,
+                    OperationKind.Restore,
+                    OperationStage.VerifyingArchive,
+                    OperationOutcome.Running,
+                    started,
+                    snapshot.ArchiveSize,
+                    snapshot.ArchiveSize);
                 result = await restoreService.RestoreAsync(
                     archive,
                     snapshot.ArchiveSha256,
@@ -220,9 +258,35 @@ public sealed class ApplicationRuntime : IApplicationRuntime
                     runtimeGame.Config,
                     cancellationToken).ConfigureAwait(false);
             }
+
+            ReportOperation(
+                operationId,
+                gameId,
+                OperationKind.Restore,
+                OperationStage.Completed,
+                OperationOutcome.Succeeded,
+                started);
         }
         catch (OperationCanceledException)
         {
+            ReportOperation(
+                operationId,
+                gameId,
+                OperationKind.Restore,
+                OperationStage.Completed,
+                OperationOutcome.Canceled,
+                started);
+            throw;
+        }
+        catch
+        {
+            ReportOperation(
+                operationId,
+                gameId,
+                OperationKind.Restore,
+                OperationStage.Completed,
+                OperationOutcome.Failed,
+                started);
             throw;
         }
         finally
@@ -399,4 +463,27 @@ public sealed class ApplicationRuntime : IApplicationRuntime
 
     private void ThrowIfDisposed() =>
         ObjectDisposedException.ThrowIf(disposed, this);
+
+    private void ReportOperation(
+        Guid operationId,
+        Guid? gameId,
+        OperationKind kind,
+        OperationStage stage,
+        OperationOutcome outcome,
+        long startedTimestamp,
+        long bytesCompleted = 0,
+        long? totalBytes = null,
+        string? detail = null)
+    {
+        operationMonitor.Report(new OperationProgress(
+            operationId,
+            gameId,
+            kind,
+            stage,
+            bytesCompleted,
+            totalBytes,
+            TimeProvider.System.GetElapsedTime(startedTimestamp),
+            detail,
+            outcome));
+    }
 }

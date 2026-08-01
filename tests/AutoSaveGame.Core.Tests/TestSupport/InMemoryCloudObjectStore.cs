@@ -71,6 +71,18 @@ internal sealed class InMemoryCloudObjectStore : ICloudObjectStore
         return Map(stored, checksum);
     }
 
+    public async Task<CloudObject> UploadAsync(
+        string name,
+        Stream content,
+        string contentType,
+        IProgress<CloudTransferProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var result = await UploadAsync(name, content, contentType, cancellationToken);
+        progress?.Report(new CloudTransferProgress(result.Size, result.Size));
+        return result;
+    }
+
     public async Task DownloadAsync(
         string fileId,
         Stream destination,

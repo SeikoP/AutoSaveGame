@@ -72,13 +72,13 @@ public sealed class MainViewModelTests
 
         Assert.True(sut.IsBusy);
         Assert.True(sut.IsProgressVisible);
-        Assert.Equal("Connecting to Google Drive...", sut.StatusMessage);
+        Assert.Equal("Đang kết nối Google Drive...", sut.StatusMessage);
 
         releaseSignIn.SetResult();
         await signIn;
 
         Assert.False(sut.IsProgressVisible);
-        Assert.Equal("Games loaded.", sut.StatusMessage);
+        Assert.Equal("Đã tải danh sách game.", sut.StatusMessage);
     }
 
     [Fact]
@@ -96,6 +96,29 @@ public sealed class MainViewModelTests
         Assert.False(sut.IsSignedIn);
         Assert.True(sut.IsEmpty);
         Assert.Empty(sut.Games);
+    }
+
+    [Fact]
+    public void OperationChanged_ShowsMeasuredVietnameseProgress()
+    {
+        var runtime = new FakeRuntime([]);
+        var sut = new MainViewModel(runtime, new FakePrompts([]));
+
+        runtime.EmitOperation(new OperationProgress(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            OperationKind.Backup,
+            OperationStage.UploadingArchive,
+            50,
+            100,
+            TimeSpan.FromSeconds(2),
+            null,
+            OperationOutcome.Running));
+
+        Assert.True(sut.IsProgressVisible);
+        Assert.False(sut.IsProgressIndeterminate);
+        Assert.Equal(50, sut.OperationPercent);
+        Assert.Equal("Đang tải lên Google Drive", sut.ProgressStatus);
     }
 
     [Fact]
@@ -134,7 +157,7 @@ public sealed class MainViewModelTests
         await sut.RestoreCommand.ExecuteAsync(sut.Games.Single());
 
         Assert.Equal(["confirm-closed", "restore"], events);
-        Assert.Equal("Restore completed.", sut.StatusMessage);
+        Assert.Equal("Khôi phục hoàn tất.", sut.StatusMessage);
     }
 
     [Fact]
@@ -160,8 +183,8 @@ public sealed class MainViewModelTests
 
             await sut.SignInCommand.ExecuteAsync();
 
-            Assert.Equal("Google sign-in failed", prompts.ErrorTitle);
-            Assert.Contains("Cannot reach Google", prompts.ErrorMessage);
+            Assert.Equal("Không thể đăng nhập Google", prompts.ErrorTitle);
+            Assert.Contains("Không thể kết nối tới Google", prompts.ErrorMessage);
             Assert.DoesNotContain("raw network details", prompts.ErrorMessage);
             Assert.False(string.IsNullOrWhiteSpace(prompts.CorrelationId));
         }
@@ -209,7 +232,17 @@ public sealed class MainViewModelTests
 
         public bool HasUnsafeChanges => false;
 
+        public OperationProgress? CurrentOperation { get; private set; }
+
         public event EventHandler? GamesChanged;
+
+        public event EventHandler? OperationChanged;
+
+        public void EmitOperation(OperationProgress progress)
+        {
+            CurrentOperation = progress;
+            OperationChanged?.Invoke(this, EventArgs.Empty);
+        }
 
         public async Task SignInAsync(CancellationToken cancellationToken)
         {

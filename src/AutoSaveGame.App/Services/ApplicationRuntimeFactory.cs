@@ -42,12 +42,14 @@ internal static class ApplicationRuntimeFactory
         var session = new GoogleUserSession(options);
         var gateway = new GoogleDriveGateway(() => session.CurrentDriveService);
         var cloud = new GoogleDriveObjectStore(gateway);
+        var operationMonitor = new OperationMonitor();
         var codec = new CatalogCodec();
         var catalogs = new CatalogRepository(
             cloud,
             codec,
             new CatalogSelector(codec),
-            TimeProvider.System);
+            TimeProvider.System,
+            operationMonitor);
         var snapshotArchive = new ZipSnapshotArchive();
         var restore = new RestoreService(
             snapshotArchive,
@@ -60,7 +62,8 @@ internal static class ApplicationRuntimeFactory
             Path.Combine(
                 Path.GetTempPath(),
                 "AutoSaveGame",
-                $"session-{Environment.ProcessId}"));
+                $"session-{Environment.ProcessId}"),
+            operationMonitor);
         var bridge = new RuntimeBackupBridge();
         var scheduler = new DebouncedBackupScheduler(
             bridge.InvokeAsync,
@@ -79,7 +82,8 @@ internal static class ApplicationRuntimeFactory
             watcher,
             pathTemplates,
             new SessionRestoreArchiveStore(),
-            backup.BackupAsync);
+            backup.BackupAsync,
+            operationMonitor);
         bridge.Runtime = runtime;
         return runtime;
     }

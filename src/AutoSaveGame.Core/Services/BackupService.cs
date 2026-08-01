@@ -8,7 +8,8 @@ public sealed class BackupService(
     ICatalogRepository catalogRepository,
     PathTemplateService pathTemplates,
     Guid sourceMachineId,
-    string temporaryRoot)
+    string temporaryRoot,
+    IProgress<OperationProgress>? progress = null)
 {
     private readonly ISnapshotArchive snapshotArchive = snapshotArchive
         ?? throw new ArgumentNullException(nameof(snapshotArchive));
@@ -28,6 +29,26 @@ public sealed class BackupService(
     {
         ArgumentNullException.ThrowIfNull(game);
         ArgumentNullException.ThrowIfNull(loadedCatalog);
+        var operationId = Guid.NewGuid();
+        var started = TimeProvider.System.GetTimestamp();
+        void Report(
+            OperationStage stage,
+            OperationOutcome outcome = OperationOutcome.Running,
+            long bytes = 0,
+            long? totalBytes = null,
+            string? detail = null) =>
+            progress?.Report(new OperationProgress(
+                operationId,
+                game.GameId,
+                OperationKind.Backup,
+                stage,
+                bytes,
+                totalBytes,
+                TimeProvider.System.GetElapsedTime(started),
+                detail,
+                outcome));
+
+        Report(OperationStage.BuildingArchive);
         Directory.CreateDirectory(temporaryRoot);
         var archivePath = Path.Combine(
             temporaryRoot,
@@ -42,6 +63,10 @@ public sealed class BackupService(
                 cancellationToken).ConfigureAwait(false);
             if (snapshot.Kind == SnapshotBuildKind.Pending)
             {
+                Report(
+                    OperationStage.Completed,
+                    OperationOutcome.Failed,
+                    detail: snapshot.Message);
                 return new BackupResult(BackupKind.Pending, snapshot.Message);
             }
 
@@ -50,6 +75,7 @@ public sealed class BackupService(
                     snapshot.ContentSha256,
                     StringComparison.Ordinal))
             {
+                Report(OperationStage.Completed, OperationOutcome.Succeeded);
                 return new BackupResult(BackupKind.Unchanged);
             }
 
@@ -60,6 +86,9 @@ public sealed class BackupService(
                 FileShare.Read,
                 81920,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
+            Report(
+                OperationStage.UploadingArchive,
+                totalBytes: snapshot.ArchiveSize);
             var commit = await catalogRepository.CommitSnapshotAsync(
                 loadedCatalog,
                 game.GameId,
@@ -67,7 +96,7 @@ public sealed class BackupService(
                 snapshot,
                 sourceMachineId,
                 cancellationToken).ConfigureAwait(false);
-            return commit.Kind switch
+            var result = commit.Kind switch
             {
                 CatalogCommitKind.Success => new BackupResult(BackupKind.Success),
                 CatalogCommitKind.Unchanged => new BackupResult(BackupKind.Unchanged),
@@ -75,10 +104,25 @@ public sealed class BackupService(
                     new BackupResult(BackupKind.Conflict, commit.Message),
                 _ => new BackupResult(BackupKind.Failed, commit.Message),
             };
+            Report(
+                OperationStage.Completed,
+                result.Kind is BackupKind.Success or BackupKind.Unchanged
+                    ? OperationOutcome.Succeeded
+                    : result.Kind == BackupKind.Conflict
+                        ? OperationOutcome.Conflict
+                        : OperationOutcome.Failed,
+                snapshot.ArchiveSize,
+                snapshot.ArchiveSize,
+                result.Message);
+            return result;
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException)
         {
+            Report(
+                OperationStage.Completed,
+                OperationOutcome.Failed,
+                detail: exception.Message);
             return new BackupResult(BackupKind.Failed, exception.Message);
         }
         finally

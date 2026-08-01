@@ -43,12 +43,14 @@ public sealed class BackupServiceTests
                 8,
                 "unused.zip",
                 null));
+        var reported = new List<OperationProgress>();
         var sut = new BackupService(
             archive,
             repository,
             paths,
             Guid.Parse("0de891ef-1e21-4d51-bacd-a5f1120437bb"),
-            Path.GetTempPath());
+            Path.GetTempPath(),
+            new InlineProgress<OperationProgress>(reported.Add));
 
         var result = await sut.BackupAsync(
             game,
@@ -57,6 +59,9 @@ public sealed class BackupServiceTests
 
         Assert.Equal(BackupKind.Unchanged, result.Kind);
         Assert.Equal(0, cloud.UploadCalls);
+        Assert.Equal(OperationStage.BuildingArchive, reported[0].Stage);
+        Assert.Equal(OperationStage.Completed, reported[^1].Stage);
+        Assert.Equal(OperationOutcome.Succeeded, reported[^1].Outcome);
     }
 
     private sealed class StubSnapshotArchive(SnapshotBuildResult result)
@@ -73,5 +78,10 @@ public sealed class BackupServiceTests
             string stagingDirectory,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

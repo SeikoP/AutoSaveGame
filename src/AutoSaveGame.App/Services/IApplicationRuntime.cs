@@ -11,7 +11,15 @@ public interface IApplicationRuntime : IAsyncDisposable
 
     bool HasUnsafeChanges { get; }
 
+    OperationProgress? CurrentOperation => null;
+
     event EventHandler? GamesChanged;
+
+    event EventHandler? OperationChanged
+    {
+        add { }
+        remove { }
+    }
 
     Task SignInAsync(CancellationToken cancellationToken);
 

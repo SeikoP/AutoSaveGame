@@ -33,18 +33,7 @@ public sealed class GameItemViewModel : INotifyPropertyChanged
 
     public GameSyncStatus Status => runtimeGame.StateMachine.Status;
 
-    public string StatusText => Status switch
-    {
-        GameSyncStatus.NotConfigured => "Choose save folder",
-        GameSyncStatus.Watching when runtimeGame.Config.Snapshot is null =>
-            "Waiting for first backup",
-        GameSyncStatus.Watching => "Safe in Google Drive",
-        GameSyncStatus.Dirty => "Changes detected",
-        GameSyncStatus.BackingUp or GameSyncStatus.Pending => "Backing up",
-        GameSyncStatus.Restoring => "Restoring",
-        GameSyncStatus.Conflict or GameSyncStatus.Error => "Action required",
-        _ => Status.ToString(),
-    };
+    public string StatusText => VietnameseText.GameStatus(Status, CanRestore);
 
     public bool CanRestore => runtimeGame.Config.Snapshot is not null;
 
@@ -53,9 +42,17 @@ public sealed class GameItemViewModel : INotifyPropertyChanged
     public DateTimeOffset? LastBackupUtc =>
         runtimeGame.Config.Snapshot?.LastBackupUtc;
 
+    public long ArchiveSize => runtimeGame.Config.Snapshot?.ArchiveSize ?? 0;
+
+    public string? ArchiveFileId => runtimeGame.Config.Snapshot?.ArchiveFileId;
+
+    public string? ArchiveSha256 => runtimeGame.Config.Snapshot?.ArchiveSha256;
+
     public string LastBackupText => LastBackupUtc is null
-        ? "Never backed up"
-        : LastBackupUtc.Value.ToLocalTime().ToString("g");
+        ? "Chưa sao lưu"
+        : VietnameseText.FormatDateTime(LastBackupUtc.Value);
+
+    public string LastBackupDisplayText => $"Lần sao lưu gần nhất: {LastBackupText}";
 
     private void OnStatusChanged(object? sender, GameSyncStatus status)
     {

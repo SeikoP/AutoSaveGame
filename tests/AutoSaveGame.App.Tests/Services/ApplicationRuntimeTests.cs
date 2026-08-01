@@ -26,6 +26,15 @@ public sealed class ApplicationRuntimeTests
         var catalog = new Catalog(1, 1, [game]);
         var watcher = new RecordingWatcher(events);
         var archiveStore = new RecordingRestoreArchiveStore(events);
+        var monitor = new OperationMonitor();
+        var observedStages = new List<OperationStage>();
+        monitor.Changed += (_, _) =>
+        {
+            if (monitor.Current is not null)
+            {
+                observedStages.Add(monitor.Current.Stage);
+            }
+        };
         var runtime = new ApplicationRuntime(
             new FakeSession(),
             new FakeCatalogRepository(catalog),
@@ -35,7 +44,8 @@ public sealed class ApplicationRuntimeTests
             watcher,
             new PathTemplateService(new Dictionary<string, string>()),
             archiveStore,
-            (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)));
+            (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)),
+            monitor);
         await runtime.SignInAsync(TestContext.Current.CancellationToken);
         events.Clear();
 
@@ -47,6 +57,9 @@ public sealed class ApplicationRuntimeTests
             ["stop", "create-archive", "download", "restore", "dispose-archive", "start"],
             events);
         Assert.Equal(GameSyncStatus.Watching, runtime.Games.Single().StateMachine.Status);
+        Assert.Contains(OperationStage.DownloadingArchive, observedStages);
+        Assert.Contains(OperationStage.VerifyingArchive, observedStages);
+        Assert.Equal(OperationOutcome.Succeeded, runtime.CurrentOperation?.Outcome);
     }
 
     [Fact]
@@ -148,6 +161,16 @@ public sealed class ApplicationRuntimeTests
         {
             events.Add("download");
             await destination.WriteAsync("zip-data"u8.ToArray(), cancellationToken);
+        }
+
+        public async Task DownloadAsync(
+            string fileId,
+            Stream destination,
+            IProgress<CloudTransferProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            await DownloadAsync(fileId, destination, cancellationToken);
+            progress?.Report(new CloudTransferProgress(8, 8));
         }
 
         public Task DeleteAsync(string fileId, CancellationToken cancellationToken) =>

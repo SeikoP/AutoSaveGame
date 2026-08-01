@@ -8,8 +8,8 @@ public sealed class UserPromptService : IUserPromptService
     public Task ShowPublicComputerWarningAsync()
     {
         WpfMessageBox.Show(
-            "This is a public computer. Use a Guest/Private browser window for Google sign-in, then close that browser window when authorization finishes.",
-            "Public computer safety",
+            "Đây là máy tính công cộng. Hãy dùng cửa sổ Khách/Riêng tư để đăng nhập Google, sau đó đóng cửa sổ trình duyệt khi cấp quyền xong.",
+            "An toàn trên máy tính công cộng",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);
         return Task.CompletedTask;
@@ -18,24 +18,24 @@ public sealed class UserPromptService : IUserPromptService
     public Task<bool> ConfirmGameClosedAsync(string displayName) =>
         Task.FromResult(
             WpfMessageBox.Show(
-                $"Close {displayName} before restoring. Continue?",
-                "Restore save",
+                $"Hãy đóng {displayName} trước khi khôi phục. Tiếp tục?",
+                "Khôi phục save",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) == MessageBoxResult.Yes);
 
     public Task<bool> ConfirmDeleteAsync(string displayName) =>
         Task.FromResult(
             WpfMessageBox.Show(
-                $"Remove {displayName} from AutoSaveGame? The current Drive snapshot is kept until a later cleanup.",
-                "Remove game",
+                $"Xóa {displayName} khỏi AutoSaveGame? Bản sao trên Drive sẽ được giữ lại cho tới lần dọn dẹp sau.",
+                "Xóa game",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question) == MessageBoxResult.Yes);
 
     public Task<ExitChoice> ConfirmExitAsync()
     {
         var result = WpfMessageBox.Show(
-            "Some games are not safely backed up.\n\nYes: backup and exit\nNo: exit anyway\nCancel: stay open",
-            "Unsafe changes",
+            "Một số game chưa được sao lưu an toàn.\n\nCó: sao lưu rồi thoát\nKhông: vẫn thoát\nHủy: tiếp tục sử dụng",
+            "Có thay đổi chưa an toàn",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Warning);
         return Task.FromResult(result switch
