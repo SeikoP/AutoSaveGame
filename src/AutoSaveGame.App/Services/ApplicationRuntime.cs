@@ -14,6 +14,7 @@ public sealed class ApplicationRuntime : IApplicationRuntime
     private readonly IBackupScheduler scheduler;
     private readonly IGameDirectoryWatcher watcher;
     private readonly PathTemplateService pathTemplates;
+    private readonly IRestoreArchiveStore restoreArchiveStore;
     private readonly Func<GameConfig, Catalog, CancellationToken, Task<BackupResult>>
         backupOperation;
     private readonly SemaphoreSlim operationGate = new(1, 1);
@@ -29,6 +30,7 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         IBackupScheduler scheduler,
         IGameDirectoryWatcher watcher,
         PathTemplateService pathTemplates,
+        IRestoreArchiveStore restoreArchiveStore,
         Func<GameConfig, Catalog, CancellationToken, Task<BackupResult>> backupOperation)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
@@ -40,6 +42,8 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         this.watcher = watcher ?? throw new ArgumentNullException(nameof(watcher));
         this.pathTemplates = pathTemplates
             ?? throw new ArgumentNullException(nameof(pathTemplates));
+        this.restoreArchiveStore = restoreArchiveStore
+            ?? throw new ArgumentNullException(nameof(restoreArchiveStore));
         this.backupOperation = backupOperation
             ?? throw new ArgumentNullException(nameof(backupOperation));
     }
@@ -94,12 +98,15 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        Guid id = default;
+        var shouldBackup = false;
         await operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var current = RequireCatalog();
-            var id = gameId ?? Guid.NewGuid();
+            id = gameId ?? Guid.NewGuid();
             var existing = current.Games.SingleOrDefault(game => game.GameId == id);
+            shouldBackup = existing is null;
             var config = new GameConfig(
                 id,
                 displayName.Trim(),
@@ -121,6 +128,11 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         finally
         {
             operationGate.Release();
+        }
+
+        if (shouldBackup)
+        {
+            await scheduler.BackupNowAsync(id, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -173,18 +185,25 @@ public sealed class ApplicationRuntime : IApplicationRuntime
             }
 
             runtimeGame.StateMachine.TransitionTo(GameSyncStatus.Restoring);
-            await using var archive = new MemoryStream();
-            await cloud.DownloadAsync(
-                snapshot.ArchiveFileId,
-                archive,
-                cancellationToken).ConfigureAwait(false);
-            archive.Position = 0;
-            var result = await restoreService.RestoreAsync(
-                archive,
-                snapshot.ArchiveSha256,
-                snapshot.ContentSha256,
-                pathTemplates.Expand(runtimeGame.Config.PathTemplate),
-                cancellationToken).ConfigureAwait(false);
+            RestoreResult result;
+            await using (var archiveHandle = await restoreArchiveStore.CreateAsync(
+                             cancellationToken).ConfigureAwait(false))
+            {
+                var archive = archiveHandle.Stream;
+                await cloud.DownloadAsync(
+                    snapshot.ArchiveFileId,
+                    archive,
+                    cancellationToken).ConfigureAwait(false);
+                await archive.FlushAsync(cancellationToken).ConfigureAwait(false);
+                archive.Position = 0;
+                result = await restoreService.RestoreAsync(
+                    archive,
+                    snapshot.ArchiveSha256,
+                    snapshot.ContentSha256,
+                    pathTemplates.Expand(runtimeGame.Config.PathTemplate),
+                    cancellationToken).ConfigureAwait(false);
+            }
+
             if (!result.Success)
             {
                 runtimeGame.StateMachine.TransitionTo(GameSyncStatus.Error);

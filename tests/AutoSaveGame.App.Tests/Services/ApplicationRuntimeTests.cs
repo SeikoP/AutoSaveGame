@@ -25,6 +25,7 @@ public sealed class ApplicationRuntimeTests
             true);
         var catalog = new Catalog(1, 1, [game]);
         var watcher = new RecordingWatcher(events);
+        var archiveStore = new RecordingRestoreArchiveStore(events);
         var runtime = new ApplicationRuntime(
             new FakeSession(),
             new FakeCatalogRepository(catalog),
@@ -33,6 +34,7 @@ public sealed class ApplicationRuntimeTests
             new RecordingScheduler(),
             watcher,
             new PathTemplateService(new Dictionary<string, string>()),
+            archiveStore,
             (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)));
         await runtime.SignInAsync(TestContext.Current.CancellationToken);
         events.Clear();
@@ -41,8 +43,47 @@ public sealed class ApplicationRuntimeTests
             game.GameId,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(["stop", "download", "restore", "start"], events);
+        Assert.Equal(
+            ["stop", "create-archive", "download", "restore", "dispose-archive", "start"],
+            events);
         Assert.Equal(GameSyncStatus.Watching, runtime.Games.Single().StateMachine.Status);
+    }
+
+    [Fact]
+    public async Task AddOrUpdateGameAsync_RequestsInitialBackupAfterSavingCatalog()
+    {
+        var savePath = Path.Combine(
+            Path.GetTempPath(),
+            $"AutoSaveGame-Runtime-Add-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(savePath);
+        try
+        {
+            var scheduler = new RecordingScheduler();
+            var runtime = new ApplicationRuntime(
+                new FakeSession(),
+                new FakeCatalogRepository(Catalog.Empty),
+                new RecordingCloudStore([]),
+                new RecordingRestoreService([]),
+                scheduler,
+                new RecordingWatcher([]),
+                new PathTemplateService(new Dictionary<string, string>()),
+                new RecordingRestoreArchiveStore([]),
+                (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)));
+            await runtime.SignInAsync(TestContext.Current.CancellationToken);
+
+            await runtime.AddOrUpdateGameAsync(
+                null,
+                "Hades",
+                savePath,
+                TestContext.Current.CancellationToken);
+
+            Assert.Single(scheduler.BackupNowGameIds);
+            Assert.Equal(runtime.Games.Single().Config.GameId, scheduler.BackupNowGameIds[0]);
+        }
+        finally
+        {
+            Directory.Delete(savePath, recursive: true);
+        }
     }
 
     private sealed class FakeSession : IUserSession
@@ -130,6 +171,8 @@ public sealed class ApplicationRuntimeTests
 
     private sealed class RecordingScheduler : IBackupScheduler
     {
+        public List<Guid> BackupNowGameIds { get; } = [];
+
         public void RegisterGame(Guid gameId, GameSyncStateMachine stateMachine)
         {
         }
@@ -142,8 +185,35 @@ public sealed class ApplicationRuntimeTests
         {
         }
 
-        public Task BackupNowAsync(Guid gameId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public Task BackupNowAsync(Guid gameId, CancellationToken cancellationToken)
+        {
+            BackupNowGameIds.Add(gameId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingRestoreArchiveStore(List<string> events)
+        : IRestoreArchiveStore
+    {
+        public ValueTask<IRestoreArchiveHandle> CreateAsync(
+            CancellationToken cancellationToken)
+        {
+            events.Add("create-archive");
+            return ValueTask.FromResult<IRestoreArchiveHandle>(
+                new RecordingRestoreArchiveHandle(events));
+        }
+    }
+
+    private sealed class RecordingRestoreArchiveHandle(List<string> events)
+        : IRestoreArchiveHandle
+    {
+        public Stream Stream { get; } = new MemoryStream();
+
+        public async ValueTask DisposeAsync()
+        {
+            await Stream.DisposeAsync();
+            events.Add("dispose-archive");
+        }
     }
 
     private sealed class RecordingWatcher(List<string> events) : IGameDirectoryWatcher

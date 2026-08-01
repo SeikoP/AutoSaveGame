@@ -78,6 +78,7 @@ internal static class ApplicationRuntimeFactory
             scheduler,
             watcher,
             pathTemplates,
+            new SessionRestoreArchiveStore(),
             backup.BackupAsync);
         bridge.Runtime = runtime;
         return runtime;
