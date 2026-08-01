@@ -1,0 +1,11 @@
+{
+    "schema_version": 2,
+    "commit": "d07682726420fe59f9259cb8f54f9b419c5c1624",
+    "indexed_at": "2026-08-01T05:41:53Z",
+    "project": "AutoSaveGame",
+    "nodes": 1084,
+    "edges": 2808,
+    "original_size": 3276800,
+    "compressed_size": 562492,
+    "compression_level": 9
+}
