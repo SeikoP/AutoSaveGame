@@ -94,7 +94,7 @@
                          BorderThickness="0"
                          Foreground="{StaticResource PrimaryBrush}"
                          IsIndeterminate="{Binding IsProgressIndeterminate}"
-                         Value="{Binding OperationPercent}"
+                         Value="{Binding OperationPercent, Mode=OneWay}"
                          IsTabStop="False"
                          AutomationProperties.Name="Tiến độ thao tác"
                          Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />

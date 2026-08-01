@@ -12,6 +12,9 @@ public sealed class VietnameseCompactUiTests
         Assert.Contains("WindowStyle=\"None\"", markup);
         Assert.Contains("Đăng nhập bằng Google", markup);
         Assert.Contains("Dữ liệu ứng dụng trên Drive", markup);
+        Assert.Contains(
+            "Value=\"{Binding OperationPercent, Mode=OneWay}\"",
+            markup);
         Assert.DoesNotContain("Sign in with Google", markup);
         Assert.DoesNotContain("Protected games", markup);
     }
