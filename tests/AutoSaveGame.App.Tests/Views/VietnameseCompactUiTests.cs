@@ -7,11 +7,14 @@ public sealed class VietnameseCompactUiTests
     {
         var markup = ReadRepositoryFile("src/AutoSaveGame.App/MainWindow.xaml");
 
-        Assert.Contains("Width=\"360\"", markup);
-        Assert.Contains("Height=\"480\"", markup);
+        Assert.Contains("Width=\"340\"", markup);
+        Assert.Contains("Height=\"440\"", markup);
+        Assert.Contains("Topmost=\"True\"", markup);
+        Assert.Contains("AllowsTransparency=\"True\"", markup);
         Assert.Contains("WindowStyle=\"None\"", markup);
+        Assert.DoesNotContain("Deactivated=\"Window_Deactivated\"", markup);
         Assert.Contains("Đăng nhập bằng Google", markup);
-        Assert.Contains("Dữ liệu ứng dụng trên Drive", markup);
+        Assert.DoesNotContain("Dữ liệu ứng dụng trên Drive", markup);
         Assert.Contains(
             "Value=\"{Binding OperationPercent, Mode=OneWay}\"",
             markup);
@@ -21,8 +24,12 @@ public sealed class VietnameseCompactUiTests
         Assert.Contains(
             "Command=\"{Binding DataContext.SelectGameCommand, RelativeSource={RelativeSource AncestorType=Window}}\"",
             markup);
-        Assert.Contains("Xóa dữ liệu Drive của game này", markup);
-        Assert.Contains("appDataFolder ẩn của Google Drive", markup);
+        Assert.Contains("Xóa game và dữ liệu Drive", markup);
+        Assert.DoesNotContain("appDataFolder riêng trên Google Drive", markup);
+        Assert.DoesNotContain("Đăng nhập một lần trong phiên này", markup);
+        Assert.DoesNotContain("Token chỉ lưu trong RAM", markup);
+        Assert.DoesNotContain("Mỗi game giữ một snapshot", markup);
+        Assert.DoesNotContain("appDataFolder là vùng riêng", markup);
     }
 
     [Theory]

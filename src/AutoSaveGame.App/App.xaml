@@ -4,23 +4,27 @@
     <Application.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <SolidColorBrush x:Key="WindowBackground" Color="#F8FAFC" />
-        <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="PrimaryBrush" Color="#0369A1" />
-        <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#075985" />
-        <SolidColorBrush x:Key="TextStrongBrush" Color="#0F172A" />
-        <SolidColorBrush x:Key="TextBrush" Color="#334155" />
-        <SolidColorBrush x:Key="TextMutedBrush" Color="#64748B" />
-        <SolidColorBrush x:Key="BorderBrush" Color="#E2E8F0" />
-        <SolidColorBrush x:Key="MutedSurfaceBrush" Color="#F1F5F9" />
-        <SolidColorBrush x:Key="SoftBlueBrush" Color="#E0F2FE" />
-        <SolidColorBrush x:Key="SuccessBrush" Color="#047857" />
-        <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#ECFDF5" />
-        <SolidColorBrush x:Key="DangerBrush" Color="#B91C1C" />
-        <SolidColorBrush x:Key="GlassCardBackground" Color="#DFFFFFFF" Opacity="0.88" />
-        <SolidColorBrush x:Key="GlassCardBorderBrush" Color="#BFD8EAFE" Opacity="0.75" />
-        <SolidColorBrush x:Key="GlassHighlightBrush" Color="#FFFFFFFF" Opacity="0.70" />
-        <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#FEF2F2" />
+        <LinearGradientBrush x:Key="WindowBackground" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#0F172A" Offset="0" />
+            <GradientStop Color="#111827" Offset="0.55" />
+            <GradientStop Color="#172554" Offset="1" />
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="CardBackground" Color="#E21E293B" />
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#38BDF8" />
+        <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#7DD3FC" />
+        <SolidColorBrush x:Key="TextStrongBrush" Color="#FAF9FF" />
+        <SolidColorBrush x:Key="TextBrush" Color="#E2E8F0" />
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#94A3B8" />
+        <SolidColorBrush x:Key="BorderBrush" Color="#64748B" />
+        <SolidColorBrush x:Key="MutedSurfaceBrush" Color="#CC1E293B" />
+        <SolidColorBrush x:Key="SoftBlueBrush" Color="#1E3A8A" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="#34D399" />
+        <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#1530473A" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#FB7185" />
+        <SolidColorBrush x:Key="GlassCardBackground" Color="#E21E293B" />
+        <SolidColorBrush x:Key="GlassCardBorderBrush" Color="#64748B" />
+        <SolidColorBrush x:Key="GlassHighlightBrush" Color="#334155" />
+        <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#4D4C0519" />
 
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI" />
@@ -31,11 +35,33 @@
             <Setter Property="MinHeight" Value="44" />
             <Setter Property="Padding" Value="16,8" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="White" />
+            <Setter Property="Background" Value="#24324A" />
             <Setter Property="Foreground" Value="{StaticResource TextStrongBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style TargetType="Control">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Control">
+                                    <Border Margin="-3" BorderBrush="{StaticResource PrimaryHoverBrush}"
+                                            BorderThickness="2" CornerRadius="12" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#334155" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -51,6 +77,8 @@
 
         <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+            <Setter Property="BorderBrush" Value="#6BFDA4AF" />
+            <Setter Property="Background" Value="#4D4C0519" />
         </Style>
 
         <Style x:Key="Card" TargetType="Border">
@@ -58,12 +86,17 @@
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="8" Opacity="0.20" Color="#000000" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="GlassGameCard" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource GlassCardBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource GlassCardBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#F01E293B" />
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,0,0,10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -73,13 +106,13 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="16"
-                                Padding="12">
+                                CornerRadius="14"
+                                Padding="14">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="18"
-                                                  ShadowDepth="3"
-                                                  Opacity="0.16"
-                                                  Color="#0F172A" />
+                                <DropShadowEffect BlurRadius="20"
+                                                  ShadowDepth="4"
+                                                  Opacity="0.40"
+                                                  Color="#020617" />
                             </Border.Effect>
                             <Grid>
                                 <Border Height="1"

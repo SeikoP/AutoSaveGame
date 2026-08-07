@@ -4,22 +4,22 @@
         xmlns:vm="clr-namespace:AutoSaveGame.App.ViewModels"
         Title="AutoSaveGame"
         Icon="Assets/AutoSaveGame.ico"
-        Width="360"
-        Height="480"
-        MinWidth="360"
-        MinHeight="480"
-        MaxWidth="360"
-        MaxHeight="480"
+        Width="340"
+        Height="440"
+        MinWidth="340"
+        MinHeight="440"
+        MaxWidth="340"
+        MaxHeight="440"
         ResizeMode="NoResize"
         WindowStyle="None"
+        AllowsTransparency="True"
         ShowInTaskbar="False"
         Topmost="True"
-        Background="{StaticResource WindowBackground}"
+        Background="Transparent"
         Foreground="{StaticResource TextBrush}"
         FontFamily="Segoe UI"
         WindowStartupLocation="Manual"
         Loaded="Window_Loaded"
-        Deactivated="Window_Deactivated"
         Closing="Window_Closing"
         KeyboardNavigation.TabNavigation="Continue">
     <Window.Resources>
@@ -98,21 +98,23 @@
         </Style>
     </Window.Resources>
 
-    <Border BorderBrush="{StaticResource BorderBrush}"
+    <Border BorderBrush="{StaticResource GlassCardBorderBrush}"
             BorderThickness="1"
+            CornerRadius="14"
             Background="{StaticResource WindowBackground}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="64" />
+                <RowDefinition Height="54" />
                 <RowDefinition Height="4" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="46" />
             </Grid.RowDefinitions>
 
             <Border Padding="16,12"
-                    Background="White"
+                    Background="#E20F172A"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,0,1"
+                    CornerRadius="13,13,0,0"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -120,7 +122,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="34" />
                     </Grid.ColumnDefinitions>
-                    <Border Width="34" Height="34"
+                    <Border Width="30" Height="30"
                             Background="{StaticResource SoftBlueBrush}"
                             CornerRadius="10">
                         <TextBlock Text="☁"
@@ -131,7 +133,7 @@
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="AutoSaveGame"
-                                   FontSize="16"
+                                   FontSize="15"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource TextStrongBrush}" />
                         <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}">
@@ -179,18 +181,12 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="Giữ save game luôn bên bạn"
-                               FontSize="23"
+                    <TextBlock Text="Save game luôn an tâm"
+                               FontSize="19"
                                FontWeight="Bold"
                                Foreground="{StaticResource TextStrongBrush}"
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
-                    <TextBlock Margin="12,10,12,20"
-                               Text="Đăng nhập một lần trong phiên này để khôi phục và tự động sao lưu thay đổi lên vùng riêng của ứng dụng."
-                               Foreground="{StaticResource TextMutedBrush}"
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"
-                               LineHeight="20" />
                     <StackPanel HorizontalAlignment="Center">
                         <Grid Width="96" Height="96">
                             <Path Style="{StaticResource SignInRing}"
@@ -218,14 +214,6 @@
                                    Foreground="{StaticResource TextMutedBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
-                    <Border Margin="0,18,0,0" Padding="12"
-                            Background="{StaticResource SoftBlueBrush}"
-                            CornerRadius="10">
-                        <TextBlock Text="Token chỉ lưu trong RAM và bị xóa khi thoát. Dữ liệu save nằm trong appDataFolder riêng của ứng dụng."
-                                   FontSize="11"
-                                   TextWrapping="Wrap"
-                                   LineHeight="17" />
-                    </Border>
                 </StackPanel>
 
                 <Grid>
@@ -242,17 +230,13 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid>
                         <StackPanel>
-                            <TextBlock Text="Game đã bảo vệ"
-                                       FontSize="18"
+                            <TextBlock Text="Game được bảo vệ"
+                                       FontSize="19"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource TextStrongBrush}" />
-                            <TextBlock Text="Mỗi game giữ một snapshot đã xác minh"
-                                       FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}" />
                         </StackPanel>
                         <Button HorizontalAlignment="Right"
                                 Style="{StaticResource CompactButton}"
@@ -260,7 +244,7 @@
                                 Click="AddGame_Click" />
                     </Grid>
 
-                    <ScrollViewer Grid.Row="1" Margin="0,10,0,8"
+                    <ScrollViewer Grid.Row="1" Margin="0,12,0,0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding Games}">
@@ -307,21 +291,6 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <Expander Grid.Row="2" Header="Dữ liệu ứng dụng trên Drive"
-                              FontSize="11" Foreground="{StaticResource TextMutedBrush}">
-                        <Border Margin="0,6,0,0" Padding="10"
-                                Background="{StaticResource MutedSurfaceBrush}"
-                                CornerRadius="8">
-                            <StackPanel>
-                                <TextBlock Text="{Binding CloudUsageText}"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextStrongBrush}" />
-                                <TextBlock Margin="0,3,0,0"
-                                           Text="appDataFolder là vùng riêng, không hiện trong danh sách file Google Drive thông thường."
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-                    </Expander>
                 </Grid>
 
                 <Grid DataContext="{Binding SelectedGame}">
@@ -343,11 +312,6 @@
                         <Button Content="← Quay lại"
                                 Style="{StaticResource CompactButton}"
                                 Command="{Binding DataContext.BackToOverviewCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                        <TextBlock HorizontalAlignment="Right"
-                                   VerticalAlignment="Center"
-                                   Text="Chi tiết game"
-                                   FontSize="12"
-                                   Foreground="{StaticResource TextMutedBrush}" />
                     </Grid>
                     <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
@@ -365,8 +329,6 @@
                                     <TextBlock Margin="0,8,0,0" Text="Bản sao Drive" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding LastBackupDisplayText}" FontSize="11" />
                                     <TextBlock Text="{Binding ArchiveSizeText}" FontSize="11" />
-                                    <TextBlock Text="{Binding ArchiveFileIdDisplay}" TextWrapping="Wrap" FontSize="10" />
-                                    <TextBlock Text="{Binding ArchiveSha256Display}" TextWrapping="Wrap" FontSize="10" />
                                 </StackPanel>
                             </Border>
                             <WrapPanel Margin="0,0,0,10">
@@ -379,20 +341,20 @@
                                         Command="{Binding DataContext.RestoreCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding}" />
                             </WrapPanel>
-                            <Border Padding="10"
+                            <Border Padding="12"
                                     Background="{StaticResource DangerSurfaceBrush}"
                                     BorderBrush="{StaticResource DangerBrush}"
                                     BorderThickness="1"
                                     CornerRadius="10">
                                 <StackPanel>
-                                    <TextBlock Text="Dữ liệu appDataFolder ẩn của Google Drive"
+                                    <TextBlock Text="Xóa vĩnh viễn trên Google Drive"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource DangerBrush}" />
                                     <TextBlock Margin="0,4,0,8"
-                                               Text="Xóa bản sao lưu Drive của game này. File save trên máy không bị xóa."
+                                               Text="Thư mục save trên máy không bị xóa."
                                                FontSize="11"
                                                TextWrapping="Wrap" />
-                                    <Button Content="Xóa dữ liệu Drive của game này"
+                                    <Button Content="Xóa game và dữ liệu Drive"
                                             Style="{StaticResource DangerButton}"
                                             Command="{Binding DataContext.DeleteCloudDataCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </StackPanel>
@@ -403,9 +365,10 @@
             </Grid>
 
             <Border Grid.Row="3" Padding="14,8"
-                    Background="White"
+                    Background="#E20F172A"
                     BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,1,0,0">
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,13,13">
                 <Grid>
                     <TextBlock Text="{Binding StatusMessage}"
                                FontSize="11"

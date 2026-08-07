@@ -166,6 +166,84 @@ public sealed class ApplicationRuntimeTests
         Assert.Null(runtime.Games.Single().Config.Snapshot);
     }
 
+    [Fact]
+    public async Task DeleteGameAndCloudDataAsync_RemovesGameFromCatalogAndRuntime()
+    {
+        var game = new GameConfig(
+            Guid.Parse("8edcd84d-8294-4c1e-81c5-569991c58499"),
+            "Hades",
+            Path.Combine(Path.GetTempPath(), "AutoSaveGame-Runtime-Delete-All"),
+            new SnapshotDescriptor(
+                "archive-file",
+                new string('a', 64),
+                new string('b', 64),
+                8,
+                DateTimeOffset.UnixEpoch,
+                Guid.Parse("0de891ef-1e21-4d51-bacd-a5f1120437bb")),
+            true);
+        var cleared = game with { Snapshot = null };
+        var catalogs = new FakeCatalogRepository(new Catalog(1, 1, [game]))
+        {
+            DeleteResult = new GameCloudDeleteResult(
+                GameCloudDeleteKind.Deleted,
+                new Catalog(1, 2, [cleared]),
+                ["archive-file"],
+                []),
+        };
+        var runtime = new ApplicationRuntime(
+            new FakeSession(),
+            catalogs,
+            new RecordingCloudStore([]),
+            new RecordingRestoreService([]),
+            new RecordingScheduler(),
+            new RecordingWatcher([]),
+            new PathTemplateService(new Dictionary<string, string>()),
+            new RecordingRestoreArchiveStore([]),
+            (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)));
+        await runtime.SignInAsync(TestContext.Current.CancellationToken);
+
+        await runtime.DeleteGameAndCloudDataAsync(
+            game.GameId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(game.GameId, catalogs.DeletedGameId);
+        Assert.Empty(runtime.Games);
+    }
+
+    [Fact]
+    public async Task DeleteGameAndCloudDataAsync_WhenCloudDeletionFails_KeepsRuntimeGame()
+    {
+        var game = new GameConfig(
+            Guid.Parse("8edcd84d-8294-4c1e-81c5-569991c58499"),
+            "Hades",
+            Path.Combine(Path.GetTempPath(), "AutoSaveGame-Runtime-Delete-Failure"),
+            null,
+            true);
+        var catalogs = new FakeCatalogRepository(new Catalog(1, 1, [game]))
+        {
+            DeleteResult = new GameCloudDeleteResult(
+                GameCloudDeleteKind.Failed,
+                null,
+                [],
+                [],
+                "Drive unavailable"),
+        };
+        var runtime = new ApplicationRuntime(
+            new FakeSession(), catalogs, new RecordingCloudStore([]),
+            new RecordingRestoreService([]), new RecordingScheduler(),
+            new RecordingWatcher([]), new PathTemplateService(new Dictionary<string, string>()),
+            new RecordingRestoreArchiveStore([]),
+            (_, _, _) => Task.FromResult(new BackupResult(BackupKind.Success)));
+        await runtime.SignInAsync(TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            runtime.DeleteGameAndCloudDataAsync(
+                game.GameId,
+                TestContext.Current.CancellationToken));
+
+        Assert.Single(runtime.Games);
+    }
+
     private sealed class FakeSession : IUserSession
     {
         public bool IsSignedIn { get; private set; }

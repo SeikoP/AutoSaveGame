@@ -1,6 +1,7 @@
 using AutoSaveGame.App.Services;
 using AutoSaveGame.App.Smoke;
 using System.Security.Principal;
+using System.Windows.Threading;
 
 namespace AutoSaveGame.App;
 
@@ -8,6 +9,15 @@ public partial class App : System.Windows.Application
 {
     private IApplicationRuntime? runtime;
     private SingleInstanceCoordinator? singleInstance;
+    private readonly ApplicationExceptionHandler exceptionHandler = new(
+        new SessionDiagnosticLog());
+
+    public App()
+    {
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
@@ -68,5 +78,30 @@ public partial class App : System.Windows.Application
             singleInstance?.Dispose();
             base.OnExit(e);
         }
+    }
+
+    private void OnDispatcherUnhandledException(
+        object sender,
+        DispatcherUnhandledExceptionEventArgs e)
+    {
+        e.Handled = exceptionHandler.Handle(
+            e.Exception,
+            "Lỗi giao diện không xử lý");
+    }
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception exception)
+        {
+            exceptionHandler.Handle(exception, "Lỗi ứng dụng không xử lý");
+        }
+    }
+
+    private void OnUnobservedTaskException(
+        object? sender,
+        UnobservedTaskExceptionEventArgs e)
+    {
+        exceptionHandler.Handle(e.Exception, "Tác vụ nền không xử lý");
+        e.SetObserved();
     }
 }

@@ -63,3 +63,16 @@ Chỉ công bố đường dẫn download rộng rãi sau khi vòng này qua. N�
 Không thay asset của release cũ. Nếu có lỗi, đánh dấu release bị lỗi là prerelease hoặc ghi cảnh báo, sửa trên commit mới và phát hành version cao hơn.
 
 Installer chưa có chữ ký code-signing nên Windows SmartScreen có thể cảnh báo vì publisher/reputation chưa được xác nhận. SHA-256 chỉ chứng minh file tải về khớp asset phát hành; nó không thay thế chữ ký số. Khi có chứng thư code-signing, ký cả app và setup trước bước tạo checksum.
+# Chạy nhanh khi phát triển
+
+Để chạy bản Debug có hot reload, tạo `.env` (hoặc dùng file `env` cũ) ở thư
+mục gốc với hai biến OAuth như hướng dẫn trong `docs/google-oauth-setup.md`,
+sau đó chạy:
+
+```powershell
+.\scripts\Run-Dev.ps1
+```
+
+`dotnet watch` sẽ hot reload khi thay đổi được .NET hỗ trợ và tự khởi động lại
+app cho các thay đổi còn lại. Dừng bằng `Ctrl+C`. Đây là luồng test cục bộ,
+không tạo installer.

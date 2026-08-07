@@ -43,6 +43,11 @@ internal sealed class UnavailableApplicationRuntime(string message)
         CancellationToken cancellationToken) =>
         Task.FromException<GameCloudDeleteResult>(new InvalidOperationException(message));
 
+    public Task<GameCloudDeleteResult> DeleteGameAndCloudDataAsync(
+        Guid gameId,
+        CancellationToken cancellationToken) =>
+        Task.FromException<GameCloudDeleteResult>(new InvalidOperationException(message));
+
     public Task SetWatchingAsync(
         Guid gameId,
         bool enabled,

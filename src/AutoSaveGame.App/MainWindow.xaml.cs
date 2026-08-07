@@ -83,14 +83,6 @@ public partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e) => AnchorToTray();
 
-    private void Window_Deactivated(object? sender, EventArgs e)
-    {
-        if (!OwnedWindows.Cast<Window>().Any(item => item.IsVisible))
-        {
-            Hide();
-        }
-    }
-
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Pressed)

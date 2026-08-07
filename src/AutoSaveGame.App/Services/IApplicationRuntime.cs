@@ -42,6 +42,10 @@ public interface IApplicationRuntime : IAsyncDisposable
         Guid gameId,
         CancellationToken cancellationToken);
 
+    Task<GameCloudDeleteResult> DeleteGameAndCloudDataAsync(
+        Guid gameId,
+        CancellationToken cancellationToken);
+
     Task RestoreAsync(Guid gameId, CancellationToken cancellationToken);
 
     Task BackupNowAsync(Guid gameId, CancellationToken cancellationToken);

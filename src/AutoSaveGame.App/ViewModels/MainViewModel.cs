@@ -286,9 +286,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         void Copy()
         {
-            clipboard.SetText(url);
-            StatusMessage =
-                "Đã sao chép liên kết đăng nhập. Nếu trình duyệt chưa mở, hãy dán vào Chrome để đăng nhập.";
+            try
+            {
+                clipboard.SetText(url);
+                StatusMessage =
+                    "Đã sao chép liên kết đăng nhập. Nếu trình duyệt chưa mở, hãy dán vào Chrome để đăng nhập.";
+            }
+            catch (Exception exception)
+            {
+                TryWriteDiagnostic(exception, "Sao chép liên kết đăng nhập");
+                StatusMessage =
+                    "Không thể sao chép liên kết đăng nhập. Trình duyệt sẽ mở để bạn tiếp tục.";
+            }
         }
 
         if (uiDispatcher.CheckAccess())
@@ -359,7 +368,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await RunBusyAsync(
             async () =>
             {
-                var result = await runtime.DeleteGameCloudDataAsync(
+                var result = await runtime.DeleteGameAndCloudDataAsync(
                     game.GameId,
                     CancellationToken.None);
                 if (result.Kind == Core.Models.GameCloudDeleteKind.CleanupIncomplete)
@@ -367,9 +376,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     StatusMessage = "Đã bỏ liên kết Drive, còn file cần dọn lại.";
                 }
             },
-            "Đã xóa dữ liệu Drive của game.",
-            "Xóa dữ liệu Drive",
-            $"Đang xóa dữ liệu Drive của {game.DisplayName}...");
+            "Đã xóa game và dữ liệu Drive.",
+            "Xóa game và dữ liệu Drive",
+            $"Đang xóa {game.DisplayName} và dữ liệu Drive...");
     }
 
     private async Task RunBusyAsync(
@@ -393,7 +402,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception exception)
         {
             var error = UserFacingError.From(exception);
-            var correlationId = diagnosticLog.Write(exception, operation);
+            var correlationId = TryWriteDiagnostic(exception, operation);
             StatusMessage = error.Message;
             prompts.ShowError(error.Title, error.Message, correlationId);
         }
@@ -464,6 +473,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         BackupNowCommand.RaiseCanExecuteChanged();
         DeleteGameCommand.RaiseCanExecuteChanged();
         DeleteCloudDataCommand.RaiseCanExecuteChanged();
+    }
+
+    private string? TryWriteDiagnostic(Exception exception, string operation)
+    {
+        try
+        {
+            return diagnosticLog.Write(exception, operation);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

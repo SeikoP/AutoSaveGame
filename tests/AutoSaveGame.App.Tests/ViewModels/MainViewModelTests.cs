@@ -2,6 +2,7 @@ using AutoSaveGame.App.Services;
 using AutoSaveGame.App.ViewModels;
 using AutoSaveGame.Core.Models;
 using AutoSaveGame.Core.Services;
+using System.Runtime.InteropServices;
 
 namespace AutoSaveGame.App.Tests.ViewModels;
 
@@ -188,6 +189,20 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void AuthUrlGenerated_WhenClipboardIsBlocked_DoesNotTerminateSignInFlow()
+    {
+        var runtime = new FakeRuntime([]);
+        var sut = new MainViewModel(
+            runtime,
+            new FakePrompts([]),
+            clipboard: new ThrowingClipboard());
+
+        runtime.EmitAuthUrl("https://accounts.google.com/o/oauth2/v2/auth?code=secret");
+
+        Assert.Contains("Không thể sao chép", sut.StatusMessage);
+    }
+
+    [Fact]
     public async Task SignOutCommand_ClearsSignedInDashboard()
     {
         var runtime = new FakeRuntime([])
@@ -320,7 +335,7 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task DeleteCloudDataCommand_DeletesSelectedGameAfterConfirmation()
+    public async Task DeleteCloudDataCommand_DeletesSelectedGameAndReturnsToOverviewAfterConfirmation()
     {
         var events = new List<string>();
         var runtime = new FakeRuntime(events) { RuntimeGames = [CreateRuntimeGame()] };
@@ -332,8 +347,11 @@ public sealed class MainViewModelTests
 
         await sut.DeleteCloudDataCommand.ExecuteAsync();
 
-        Assert.Equal(["confirm-cloud-delete", "delete-cloud"], events);
-        Assert.Equal("Đã xóa dữ liệu Drive của game.", sut.StatusMessage);
+        Assert.Equal(["confirm-cloud-delete", "delete-game-and-cloud"], events);
+        Assert.Empty(sut.Games);
+        Assert.Null(sut.SelectedGame);
+        Assert.True(sut.IsOverviewVisible);
+        Assert.Equal("Đã xóa game và dữ liệu Drive.", sut.StatusMessage);
     }
 
     [Fact]
@@ -453,6 +471,22 @@ public sealed class MainViewModelTests
                 []));
         }
 
+        public Task<GameCloudDeleteResult> DeleteGameAndCloudDataAsync(
+            Guid gameId,
+            CancellationToken cancellationToken)
+        {
+            events.Add("delete-game-and-cloud");
+            RuntimeGames = RuntimeGames
+                .Where(game => game.Config.GameId != gameId)
+                .ToArray();
+            GamesChanged?.Invoke(this, EventArgs.Empty);
+            return Task.FromResult(new GameCloudDeleteResult(
+                GameCloudDeleteKind.Deleted,
+                null,
+                ["archive-file"],
+                []));
+        }
+
         public Task RestoreAsync(Guid gameId, CancellationToken cancellationToken)
         {
             events.Add("restore");
@@ -541,5 +575,11 @@ public sealed class MainViewModelTests
         public string? Text { get; private set; }
 
         public void SetText(string text) => Text = text;
+    }
+
+    private sealed class ThrowingClipboard : IClipboard
+    {
+        public void SetText(string text) =>
+            throw new ExternalException("Clipboard access is denied.");
     }
 }

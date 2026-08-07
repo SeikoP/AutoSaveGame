@@ -216,6 +216,52 @@ public sealed class ApplicationRuntime : IApplicationRuntime
         }
     }
 
+    public async Task<GameCloudDeleteResult> DeleteGameAndCloudDataAsync(
+        Guid gameId,
+        CancellationToken cancellationToken)
+    {
+        await operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _ = FindGame(gameId);
+            var result = await catalogs.DeleteGameCloudDataAsync(
+                gameId,
+                cancellationToken).ConfigureAwait(false);
+            if (result.Kind is GameCloudDeleteKind.Conflict or GameCloudDeleteKind.Failed
+                || result.Catalog is null)
+            {
+                throw new InvalidOperationException(
+                    result.Message ?? "Không thể xóa dữ liệu Drive của game.");
+            }
+
+            var catalogWithoutGame = result.Catalog with
+            {
+                Generation = result.Catalog.Generation + 1,
+                Games = result.Catalog.Games
+                    .Where(game => game.GameId != gameId)
+                    .ToArray(),
+            };
+            var commit = await catalogs.SaveCatalogAsync(
+                result.Catalog,
+                catalogWithoutGame,
+                cancellationToken).ConfigureAwait(false);
+            if (commit.Kind != CatalogCommitKind.Success || commit.Catalog is null)
+            {
+                throw new InvalidOperationException(
+                    commit.Message ?? "Không thể xóa game khỏi danh mục Drive.");
+            }
+
+            currentCatalog = commit.Catalog;
+            await ReplaceRuntimeGamesAsync(currentCatalog, cancellationToken)
+                .ConfigureAwait(false);
+            return result;
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
     public async Task RestoreAsync(
         Guid gameId,
         CancellationToken cancellationToken)
