@@ -7,9 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag to release (for example v0.1.0)
-        required: true
+        description: Existing version tag to release (for example v0.1.0). Leave empty to auto-detect the latest tag.
+        required: false
         type: string
+        default: ''
 
 permissions:
   contents: read
@@ -24,13 +25,26 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && (inputs.tag || '') || github.ref_name }}
     steps:
-      - name: Check out release tag
+      - name: Check out release ref
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Determine release tag
+        shell: pwsh
+        run: |
+          $releaseTag = $env:RELEASE_TAG
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch' -and [string]::IsNullOrWhiteSpace($releaseTag)) {
+            $releaseTag = git describe --tags --abbrev=0 2>$null
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseTag)) {
+              throw 'No tag input provided and no existing tag found. Create a tag or provide one.'
+            }
+            Write-Output "Auto-detected latest tag: $releaseTag"
+          }
+          "RELEASE_TAG=$releaseTag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Validate release tag
         shell: pwsh
